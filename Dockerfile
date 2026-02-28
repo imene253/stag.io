@@ -1,69 +1,53 @@
 # Stage 1 - Build Frontend (Vite)
 FROM node:20 AS frontend
 WORKDIR /app
-
-# Copy package files and install dependencies (cached)
+# copy only package files first for caching
 COPY package*.json ./
 RUN npm install
-
-# Copy frontend source and build
 COPY . .
 RUN npm run build
 
 # Stage 2 - Backend (Laravel + PHP + Composer)
 FROM php:8.4-fpm AS backend
 
-# Prevent interactive prompts during build
+# Prevent interactive prompts during builds
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Install system dependencies required for PHP extensions
+# Install system dependencies and build tools required for PHP extensions
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential git curl unzip zlib1g-dev libzip-dev libpq-dev libonig-dev libxml2-dev pkg-config zip \
+    build-essential \
+    git curl unzip zlib1g-dev libzip-dev libpq-dev libonig-dev libxml2-dev pkg-config zip \
     && docker-php-ext-install -j$(nproc) pdo pdo_mysql mbstring zip \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Install Composer
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
-# Set working directory
 WORKDIR /var/www
 
-# Copy Laravel app files
+# Copy app files
 COPY . .
 
-# Ensure SQLite database file exists and set permissions
+# Ensure sqlite database file exists and set permissions for Laravel
 RUN mkdir -p database && touch database/database.sqlite \
-    && chown -R www-data:www-data database storage bootstrap/cache \
-    && chmod -R 775 database storage bootstrap/cache
+    && chown -R www-data:www-data database storage bootstrap/cache || true \
+    && chmod -R 775 storage bootstrap/cache database || true
+
+# Copy built frontend from Stage 1 (if present)
+COPY --from=frontend /app/public/build ./public/build
 
 # Install PHP dependencies
 RUN composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist
 
-# Ensure APP_KEY exists
-RUN if [ ! -f .env ]; then cp .env.example .env; fi \
-    && php artisan key:generate --force
+# Ensure APP_KEY exists and generate OpenAPI spec with swagger-php if available
+RUN if [ -f .env ]; then php -r "file_exists('.env') || copy('.env.example', '.env');"; fi \
+    && php artisan key:generate --force || true \
+    && if [ -f vendor/bin/openapi ]; then vendor/bin/openapi --output public/openapi.yaml ./app ./routes || true; fi
 
-# Generate OpenAPI spec if swagger-php is installed
-RUN if [ -f vendor/bin/openapi ]; then \
-        vendor/bin/openapi --output public/openapi.generated.yaml ./app ./routes || true; \
-        if [ -f public/openapi.generated.yaml ] && [ $(stat -c%s public/openapi.generated.yaml) -gt 400 ]; then \
-            mv public/openapi.generated.yaml public/openapi.yaml; \
-        else \
-            echo "Generated OpenAPI spec missing or too small — keeping existing public/openapi.yaml"; \
-            rm -f public/openapi.generated.yaml || true; \
-        fi; \
-    fi
-
-# Clear Laravel caches
+# Laravel setup
 RUN php artisan config:clear && \
     php artisan route:clear && \
     php artisan view:clear
 
-# Run database migrations (force to skip confirmation)
-RUN php artisan migrate --force
-
-# Copy built frontend from Stage 1
-COPY --from=frontend /app/public/build ./public/build
-
-# Serve Laravel on Render
+# Use artisan serve so the container listens on a port for Render
 CMD ["sh","-lc","php artisan serve --host=0.0.0.0 --port=${PORT:-8080}"]
