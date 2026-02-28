@@ -42,7 +42,15 @@ RUN composer install --no-dev --optimize-autoloader --no-interaction --prefer-di
 # Ensure APP_KEY exists and generate OpenAPI spec with swagger-php if available
 RUN if [ -f .env ]; then php -r "file_exists('.env') || copy('.env.example', '.env');"; fi \
     && php artisan key:generate --force || true \
-    && if [ -f vendor/bin/openapi ]; then vendor/bin/openapi --output public/openapi.yaml ./app ./routes || true; fi
+    && if [ -f vendor/bin/openapi ]; then \
+        vendor/bin/openapi --output public/openapi.generated.yaml ./app ./routes || true; \
+        if [ -f public/openapi.generated.yaml ] && [ $(stat -c%s public/openapi.generated.yaml) -gt 400 ]; then \
+            mv public/openapi.generated.yaml public/openapi.yaml; \
+        else \
+            echo "Generated OpenAPI spec missing or too small — keeping existing public/openapi.yaml"; \
+            rm -f public/openapi.generated.yaml || true; \
+        fi; \
+    fi
 
 # Laravel setup
 RUN php artisan config:clear && \
