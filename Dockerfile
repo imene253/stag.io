@@ -28,6 +28,11 @@ WORKDIR /var/www
 # Copy app files
 COPY . .
 
+# Ensure sqlite database file exists and set permissions for Laravel
+RUN mkdir -p database && touch database/database.sqlite \
+    && chown -R www-data:www-data database storage bootstrap/cache || true \
+    && chmod -R 775 storage bootstrap/cache database || true
+
 # Copy built frontend from Stage 1 (if present)
 COPY --from=frontend /app/public/build ./public/build
 
