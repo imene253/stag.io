@@ -8,7 +8,7 @@ COPY . .
 RUN npm run build
 
 # Stage 2 - Backend (Laravel + PHP + Composer)
-FROM php:8.2-fpm AS backend
+FROM php:8.4-fpm AS backend
 
 # Prevent interactive prompts during builds
 ENV DEBIAN_FRONTEND=noninteractive
