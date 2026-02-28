@@ -1,6 +1,7 @@
 # Stage 1 - Build Frontend (Vite)
-FROM node:18 AS frontend
+FROM node:20 AS frontend
 WORKDIR /app
+# copy only package files first for caching
 COPY package*.json ./
 RUN npm install
 COPY . .
@@ -16,7 +17,6 @@ ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     git curl unzip zlib1g-dev libzip-dev libpq-dev libonig-dev libxml2-dev pkg-config zip \
-    && docker-php-ext-configure zip --with-libzip \
     && docker-php-ext-install -j$(nproc) pdo pdo_mysql mbstring zip \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
@@ -39,4 +39,5 @@ RUN php artisan config:clear && \
     php artisan route:clear && \
     php artisan view:clear
 
-CMD ["php-fpm"]
+# Use artisan serve so the container listens on a port for Render
+CMD ["sh","-lc","php artisan serve --host=0.0.0.0 --port=${PORT:-8080}"]
