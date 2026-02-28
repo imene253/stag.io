@@ -39,6 +39,11 @@ COPY --from=frontend /app/public/build ./public/build
 # Install PHP dependencies
 RUN composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist
 
+# Ensure APP_KEY exists and generate OpenAPI spec with swagger-php if available
+RUN if [ -f .env ]; then php -r "file_exists('.env') || copy('.env.example', '.env');"; fi \
+    && php artisan key:generate --force || true \
+    && if [ -f vendor/bin/openapi ]; then vendor/bin/openapi --output public/openapi.yaml ./app ./routes || true; fi
+
 # Laravel setup
 RUN php artisan config:clear && \
     php artisan route:clear && \

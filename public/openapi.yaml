@@ -4,10 +4,7 @@ info:
   version: 1.0.0
   description: API documentation for the stag.io backend (authentication, student & company profiles)
 servers:
-  - url: http://{host}
-    variables:
-      host:
-        default: 127.0.0.1:8001
+  - url: https://stag-io-8.onrender.com
 security:
   - bearerAuth: []
 components:
