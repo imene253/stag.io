@@ -42,7 +42,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // ── Admin ─────────────────────────────────────────────
     Route::middleware('role:admin')->prefix('admin')->group(function () {
-     
+        // coming next...
     });
 
 });

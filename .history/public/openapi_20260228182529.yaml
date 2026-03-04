@@ -1,0 +1,315 @@
+openapi: 3.0.3
+info:
+  title: stag.io API
+  version: 1.0.0
+  description: API documentation for the stag.io backend (authentication, student & company profiles)
+servers:
+  - url: https://stag-io-8.onrender.com
+security:
+  - bearerAuth: []
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        email:
+          type: string
+        role:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        student_profile:
+          $ref: '#/components/schemas/StudentProfile'
+        company_profile:
+          $ref: '#/components/schemas/CompanyProfile'
+    StudentProfile:
+      type: object
+      properties:
+        id:
+          type: integer
+        user_id:
+          type: integer
+        full_name:
+          type: string
+        email:
+          type: string
+        phone:
+          type: string
+        wilaya:
+          type: string
+        university:
+          type: string
+        field_of_study:
+          type: string
+        academic_level:
+          type: string
+        skills:
+          type: array
+          items:
+            type: string
+        portfolio_link:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    CompanyProfile:
+      type: object
+      properties:
+        id:
+          type: integer
+        user_id:
+          type: integer
+        company_name:
+          type: string
+        industry:
+          type: string
+        location:
+          type: string
+        website_url:
+          type: string
+        company_size:
+          type: string
+          description: One of "1-10","11-50","51-200","201-500","500+"
+        description:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    AuthResponse:
+      type: object
+      properties:
+        message:
+          type: string
+        token:
+          type: string
+        role:
+          type: string
+        user:
+          $ref: '#/components/schemas/User'
+paths:
+  /api/register:
+    post:
+      summary: Register a new user (student or company)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name,email,password,password_confirmation,role]
+              properties:
+                name:
+                  type: string
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+                password_confirmation:
+                  type: string
+                role:
+                  type: string
+                  enum: [student,company,admin]
+      responses:
+        '201':
+          description: Registration successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '422':
+          description: Validation error
+  /api/login:
+    post:
+      summary: Login and receive an API token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email,password]
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '401':
+          description: Invalid credentials
+  /api/me:
+    get:
+      summary: Get current authenticated user
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Current user
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          description: Unauthenticated
+  /api/logout:
+    post:
+      summary: Revoke current token (logout)
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Logged out
+  /api/student/profile:
+    get:
+      summary: Get authenticated student's profile
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Student profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StudentProfile'
+        '403':
+          description: Forbidden (wrong role)
+        '404':
+          description: Profile not found
+    put:
+      summary: Update authenticated student's profile
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                full_name: { type: string }
+                email: { type: string, format: email }
+                phone: { type: string }
+                wilaya: { type: string }
+                university: { type: string }
+                field_of_study: { type: string }
+                academic_level: { type: string }
+                skills:
+                  type: array
+                  items:
+                    type: string
+                portfolio_link: { type: string }
+      responses:
+        '200':
+          description: Updated profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StudentProfile'
+        '403':
+          description: Forbidden (wrong role)
+  /api/company/profile:
+    get:
+      summary: Get authenticated company's profile
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Company profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompanyProfile'
+        '403':
+          description: Forbidden (wrong role)
+        '404':
+          description: Profile not found
+    put:
+      summary: Update authenticated company's profile
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                company_name: { type: string }
+                industry: { type: string }
+                location: { type: string }
+                website_url: { type: string }
+                company_size:
+                  type: string
+                  enum: ["1-10","11-50","51-200","201-500","500+"]
+                description: { type: string }
+      responses:
+        '200':
+          description: Updated profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompanyProfile'
+        '403':
+          description: Forbidden (wrong role)
+  /api/students/{id}/cv:
+    get:
+      summary: Public view of a student's CV/profile
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Public student profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StudentProfile'
+        '404':
+          description: Not found
+  /api/companies/{id}:
+    get:
+      summary: Public view of a company profile
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Public company profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompanyProfile'
+        '404':
+          description: Not found
