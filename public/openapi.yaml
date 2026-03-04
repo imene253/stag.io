@@ -94,6 +94,45 @@ components:
         updated_at:
           type: string
           format: date-time
+    InternshipOffer:
+      type: object
+      properties:
+        id:
+          type: integer
+        user_id:
+          type: integer
+        title:
+          type: string
+        description:
+          type: string
+        domain:
+          type: string
+        location:
+          type: string
+        type:
+          type: string
+          enum: ["présentiel","télétravail","hybride"]
+        duration_unit:
+          type: string
+          enum: ["weeks","months"]
+        duration_value:
+          type: integer
+        required_skills:
+          type: array
+          items:
+            type: string
+        status:
+          type: string
+          enum: ["open","closed"]
+        deadline:
+          type: string
+          format: date
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
     AuthResponse:
       type: object
       properties:
@@ -313,3 +352,214 @@ paths:
                 $ref: '#/components/schemas/CompanyProfile'
         '404':
           description: Not found
+  /api/offers:
+    get:
+      summary: List public internship offers with optional filters
+      parameters:
+        - in: query
+          name: wilaya
+          schema:
+            type: string
+          description: Filter by wilaya / location
+        - in: query
+          name: domain
+          schema:
+            type: string
+          description: Filter by domain
+        - in: query
+          name: type
+          schema:
+            type: string
+            enum: ["présentiel","télétravail","hybride"]
+          description: Filter by internship type
+        - in: query
+          name: skill
+          schema:
+            type: string
+          description: Filter by required skill
+      responses:
+        '200':
+          description: Paginated list of internship offers
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/InternshipOffer'
+                  current_page: { type: integer }
+                  last_page: { type: integer }
+                  per_page: { type: integer }
+                  total: { type: integer }
+  /api/offers/{id}:
+    get:
+      summary: Get a single internship offer (public)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Internship offer
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  offer:
+                    $ref: '#/components/schemas/InternshipOffer'
+        '404':
+          description: Offer not found
+  /api/company/offers:
+    get:
+      summary: List internship offers created by the authenticated company
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Paginated list of the company's internship offers
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/InternshipOffer'
+                  current_page: { type: integer }
+                  last_page: { type: integer }
+                  per_page: { type: integer }
+                  total: { type: integer }
+        '401':
+          description: Unauthenticated
+    post:
+      summary: Create a new internship offer (company only)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title,description,domain,location,type,duration_unit,duration_value]
+              properties:
+                title: { type: string, maxLength: 255 }
+                description: { type: string }
+                domain: { type: string, maxLength: 255 }
+                location: { type: string, maxLength: 255 }
+                type:
+                  type: string
+                  enum: ["présentiel","télétravail","hybride"]
+                duration_unit:
+                  type: string
+                  enum: ["weeks","months"]
+                duration_value:
+                  type: integer
+                  minimum: 1
+                required_skills:
+                  type: array
+                  items:
+                    type: string
+                deadline:
+                  type: string
+                  format: date
+      responses:
+        '201':
+          description: Offer created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+                  offer:
+                    $ref: '#/components/schemas/InternshipOffer'
+        '401':
+          description: Unauthenticated
+        '422':
+          description: Validation error
+  /api/company/offers/{id}:
+    put:
+      summary: Update an existing internship offer (company only, must own offer)
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title: { type: string, maxLength: 255 }
+                description: { type: string }
+                domain: { type: string, maxLength: 255 }
+                location: { type: string, maxLength: 255 }
+                type:
+                  type: string
+                  enum: ["présentiel","télétravail","hybride"]
+                duration_unit:
+                  type: string
+                  enum: ["weeks","months"]
+                duration_value:
+                  type: integer
+                  minimum: 1
+                required_skills:
+                  type: array
+                  items:
+                    type: string
+                status:
+                  type: string
+                  enum: ["open","closed"]
+                deadline:
+                  type: string
+                  format: date
+      responses:
+        '200':
+          description: Offer updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+                  offer:
+                    $ref: '#/components/schemas/InternshipOffer'
+        '401':
+          description: Unauthenticated
+        '404':
+          description: Offer not found or not owned by the company
+    delete:
+      summary: Delete an internship offer (company only, must own offer)
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Offer deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+        '401':
+          description: Unauthenticated
+        '404':
+          description: Offer not found or not owned by the company
