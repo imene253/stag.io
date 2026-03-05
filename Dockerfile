@@ -50,11 +50,20 @@ RUN php artisan config:clear && \
 # Create startup script that runs migrations and seeders before starting server
 RUN echo '#!/bin/sh\n\
 set -e\n\
-echo "Running database migrations..."\n\
-php artisan migrate --force || echo "Migration failed, continuing..."\n\
-echo "Seeding admin user..."\n\
-php artisan db:seed --class=AdminSeeder --force || echo "Seeding failed, continuing..."\n\
-echo "Starting Laravel server..."\n\
+echo "=== Ensuring database file exists ==="\n\
+mkdir -p /var/www/database\n\
+touch /var/www/database/database.sqlite\n\
+chmod 664 /var/www/database/database.sqlite\n\
+chown www-data:www-data /var/www/database/database.sqlite\n\
+echo "=== Running database migrations ==="\n\
+php artisan migrate --force\n\
+if [ $? -ne 0 ]; then\n\
+    echo "ERROR: Migrations failed!"\n\
+    exit 1\n\
+fi\n\
+echo "=== Seeding admin user ==="\n\
+php artisan db:seed --class=AdminSeeder --force || echo "Note: AdminSeeder may have already run (admin exists)"\n\
+echo "=== Starting Laravel server ==="\n\
 exec php artisan serve --host=0.0.0.0 --port=${PORT:-8080}' > /var/www/start.sh && \
     chmod +x /var/www/start.sh
 
