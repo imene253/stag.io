@@ -31,9 +31,6 @@ RUN composer install --no-dev --optimize-autoloader --no-interaction --prefer-di
 RUN if [ ! -f .env ]; then cp .env.example .env; fi \
     && php artisan key:generate --force
 
-# Run migrations (force so no confirmation is required)
-RUN php artisan migrate --force
-
 # Generate OpenAPI spec if swagger-php exists
 RUN if [ -f vendor/bin/openapi ]; then \
         vendor/bin/openapi --output public/openapi.generated.yaml ./app ./routes || true; \
@@ -50,5 +47,16 @@ RUN php artisan config:clear && \
     php artisan route:clear && \
     php artisan view:clear
 
-# Serve Laravel on Render
-CMD ["sh","-lc","php artisan serve --host=0.0.0.0 --port=${PORT:-8080}"]
+# Create startup script that runs migrations and seeders before starting server
+RUN echo '#!/bin/sh\n\
+set -e\n\
+echo "Running database migrations..."\n\
+php artisan migrate --force || echo "Migration failed, continuing..."\n\
+echo "Seeding admin user..."\n\
+php artisan db:seed --class=AdminSeeder --force || echo "Seeding failed, continuing..."\n\
+echo "Starting Laravel server..."\n\
+exec php artisan serve --host=0.0.0.0 --port=${PORT:-8080}' > /var/www/start.sh && \
+    chmod +x /var/www/start.sh
+
+# Use startup script to run migrations/seeders on container startup
+CMD ["/var/www/start.sh"]
