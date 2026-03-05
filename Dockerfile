@@ -50,6 +50,18 @@ RUN php artisan config:clear && \
 # Create startup script that runs migrations and seeders before starting server
 RUN echo '#!/bin/sh\n\
 set -e\n\
+echo "=== Ensuring DB_CONNECTION is set to pgsql ==="\n\
+if [ -z "$DB_CONNECTION" ]; then\n\
+    export DB_CONNECTION=pgsql\n\
+    echo "DB_CONNECTION not set, defaulting to pgsql"\n\
+fi\n\
+if [ -f /var/www/.env ]; then\n\
+    if ! grep -q "^DB_CONNECTION=" /var/www/.env; then\n\
+        echo "DB_CONNECTION=$DB_CONNECTION" >> /var/www/.env\n\
+    else\n\
+        sed -i "s/^DB_CONNECTION=.*/DB_CONNECTION=$DB_CONNECTION/" /var/www/.env\n\
+    fi\n\
+fi\n\
 echo "=== Ensuring directories exist ==="\n\
 mkdir -p /var/www/storage/framework/sessions /var/www/storage/framework/cache /var/www/storage/framework/views\n\
 chmod -R 775 /var/www/storage /var/www/bootstrap/cache\n\
