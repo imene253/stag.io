@@ -133,6 +133,30 @@ components:
         updated_at:
           type: string
           format: date-time
+    Application:
+      type: object
+      properties:
+        id:
+          type: integer
+        student_id:
+          type: integer
+        offer_id:
+          type: integer
+        status:
+          type: string
+          enum: ["pending","accepted","refused","validated","rejected"]
+        cover_letter:
+          type: string
+          nullable: true
+        admin_note:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
     AuthResponse:
       type: object
       properties:
@@ -540,6 +564,308 @@ paths:
           description: Unauthenticated
         '404':
           description: Offer not found or not owned by the company
+  /api/student/offers/{id}/apply:
+    post:
+      summary: Apply to an internship offer (student only)
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                cover_letter:
+                  type: string
+                  maxLength: 2000
+      responses:
+        '201':
+          description: Application created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+                  application:
+                    $ref: '#/components/schemas/Application'
+        '404':
+          description: Offer not found or not open
+        '409':
+          description: Student has already applied to this offer
+  /api/student/applications:
+    get:
+      summary: List applications of the authenticated student
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Paginated list of the student's applications
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Application'
+                  current_page: { type: integer }
+                  last_page: { type: integer }
+                  per_page: { type: integer }
+                  total: { type: integer }
+  /api/student/applications/{id}:
+    delete:
+      summary: Cancel a pending application (student only)
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Application cancelled
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+        '403':
+          description: Only pending applications can be cancelled
+        '404':
+          description: Application not found
+  /api/company/offers/{id}/applications:
+    get:
+      summary: List applications for a specific offer owned by the authenticated company
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Paginated list of applications for the offer
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Application'
+                  current_page: { type: integer }
+                  last_page: { type: integer }
+                  per_page: { type: integer }
+                  total: { type: integer }
+        '404':
+          description: Offer not found or not owned by the company
+  /api/company/applications/{id}/accept:
+    put:
+      summary: Accept a student's application (company only, must own offer)
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Application accepted, awaiting admin validation
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+                  application:
+                    $ref: '#/components/schemas/Application'
+        '403':
+          description: Only pending applications can be accepted
+        '404':
+          description: Application not found or not owned by the company
+  /api/company/applications/{id}/refuse:
+    put:
+      summary: Refuse a student's application (company only, must own offer)
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Application refused
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+                  application:
+                    $ref: '#/components/schemas/Application'
+        '403':
+          description: Only pending applications can be refused
+        '404':
+          description: Application not found or not owned by the company
+  /api/admin/applications:
+    get:
+      summary: List applications for administration (admin only)
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: status
+          required: false
+          schema:
+            type: string
+            enum: ["pending","accepted","refused","validated","rejected"]
+          description: Optional filter by application status
+      responses:
+        '200':
+          description: Paginated list of applications
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Application'
+                  current_page: { type: integer }
+                  last_page: { type: integer }
+                  per_page: { type: integer }
+                  total: { type: integer }
+  /api/admin/applications/pending:
+    get:
+      summary: List applications pending validation (status=accepted) for admin
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Paginated list of accepted applications awaiting validation
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Application'
+                  current_page: { type: integer }
+                  last_page: { type: integer }
+                  per_page: { type: integer }
+                  total: { type: integer }
+  /api/admin/applications/{id}/validate:
+    put:
+      summary: Validate an accepted application (admin only)
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                admin_note:
+                  type: string
+                  maxLength: 500
+      responses:
+        '200':
+          description: Application validated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+                  application:
+                    $ref: '#/components/schemas/Application'
+        '404':
+          description: Application not found or not in accepted status
+  /api/admin/applications/{id}/reject:
+    put:
+      summary: Reject an accepted application (admin only)
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                admin_note:
+                  type: string
+                  maxLength: 500
+      responses:
+        '200':
+          description: Application rejected by administration
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+                  application:
+                    $ref: '#/components/schemas/Application'
+        '404':
+          description: Application not found or not in accepted status
+  /api/admin/stats:
+    get:
+      summary: Global statistics for applications and offers (admin only)
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Statistics for the platform
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  total_applications: { type: integer }
+                  pending: { type: integer }
+                  accepted: { type: integer }
+                  refused: { type: integer }
+                  validated: { type: integer }
+                  rejected: { type: integer }
+                  total_offers: { type: integer }
+                  open_offers: { type: integer }
+                  students_placed: { type: integer }
     delete:
       summary: Delete an internship offer (company only, must own offer)
       security:
