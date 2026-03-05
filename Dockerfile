@@ -52,43 +52,51 @@ RUN php artisan config:clear && \
 # Create startup script that runs migrations and seeders before starting server
 RUN echo '#!/bin/sh\n\
 set -e\n\
-echo "=== Checking environment variables ==="\n\
-echo "DB_CONNECTION=${DB_CONNECTION:-not set}"\n\
-echo "DB_HOST=${DB_HOST:-not set}"\n\
-echo "DB_DATABASE=${DB_DATABASE:-not set}"\n\
-echo "DB_USERNAME=${DB_USERNAME:-not set}"\n\
-echo "SESSION_DRIVER=${SESSION_DRIVER:-not set}"\n\
-echo "=== Removing .env file to force use of environment variables ==="\n\
+echo "=== FORCING SQLite configuration ==="\n\
+export DB_CONNECTION=sqlite\n\
+unset DB_HOST\n\
+unset DB_PORT\n\
+unset DB_DATABASE\n\
+unset DB_USERNAME\n\
+unset DB_PASSWORD\n\
+echo "DB_CONNECTION is now: sqlite"\n\
+echo "=== Updating .env file to use SQLite ==="\n\
 if [ -f /var/www/.env ]; then\n\
-    echo "Backing up .env and removing DB_* and SESSION_DRIVER entries"\n\
-    grep -v "^DB_" /var/www/.env | grep -v "^SESSION_DRIVER=" > /var/www/.env.tmp || true\n\
-    mv /var/www/.env.tmp /var/www/.env || true\n\
+    grep -v "^DB_" /var/www/.env | grep -v "^SESSION_DRIVER=" > /var/www/.env.tmp 2>/dev/null || cat /var/www/.env > /var/www/.env.tmp\n\
+    echo "DB_CONNECTION=sqlite" >> /var/www/.env.tmp\n\
+    echo "SESSION_DRIVER=file" >> /var/www/.env.tmp\n\
+    mv /var/www/.env.tmp /var/www/.env\n\
+else\n\
+    echo "DB_CONNECTION=sqlite" > /var/www/.env\n\
+    echo "SESSION_DRIVER=file" >> /var/www/.env\n\
 fi\n\
+echo "=== Ensuring SQLite database file exists ==="\n\
+mkdir -p /var/www/database\n\
+touch /var/www/database/database.sqlite\n\
+chmod 664 /var/www/database/database.sqlite\n\
+chown www-data:www-data /var/www/database/database.sqlite\n\
 echo "=== Ensuring directories exist ==="\n\
 mkdir -p /var/www/storage/framework/sessions /var/www/storage/framework/cache /var/www/storage/framework/views\n\
-chmod -R 775 /var/www/storage /var/www/bootstrap/cache\n\
-chown -R www-data:www-data /var/www/storage /var/www/bootstrap/cache\n\
+chmod -R 775 /var/www/database /var/www/storage /var/www/bootstrap/cache\n\
+chown -R www-data:www-data /var/www/database /var/www/storage /var/www/bootstrap/cache\n\
 echo "=== Removing ALL cached files aggressively ==="\n\
-rm -rf /var/www/bootstrap/cache/*.php\n\
-rm -rf /var/www/storage/framework/cache/data/*\n\
+rm -rf /var/www/bootstrap/cache/*\n\
+rm -rf /var/www/storage/framework/cache/*\n\
 rm -rf /var/www/storage/framework/views/*\n\
-echo "=== Clearing all caches with environment variables ==="\n\
-DB_CONNECTION=${DB_CONNECTION:-pgsql} php artisan config:clear 2>&1 || true\n\
-DB_CONNECTION=${DB_CONNECTION:-pgsql} php artisan cache:clear 2>&1 || true\n\
-DB_CONNECTION=${DB_CONNECTION:-pgsql} php artisan route:clear 2>&1 || true\n\
-DB_CONNECTION=${DB_CONNECTION:-pgsql} php artisan view:clear 2>&1 || true\n\
-DB_CONNECTION=${DB_CONNECTION:-pgsql} php artisan optimize:clear 2>&1 || true\n\
-echo "=== Verifying database connection ==="\n\
-php artisan db:show 2>&1 || echo "Database connection check failed, but continuing..."\n\
-echo "=== Running database migrations ==="\n\
-php artisan migrate --force\n\
+echo "=== Clearing all caches with SQLite ==="\n\
+DB_CONNECTION=sqlite php artisan config:clear 2>&1\n\
+DB_CONNECTION=sqlite php artisan cache:clear 2>&1\n\
+DB_CONNECTION=sqlite php artisan route:clear 2>&1\n\
+DB_CONNECTION=sqlite php artisan view:clear 2>&1\n\
+DB_CONNECTION=sqlite php artisan optimize:clear 2>&1\n\
+echo "=== Running database migrations with SQLite ==="\n\
+DB_CONNECTION=sqlite php artisan migrate --force\n\
 if [ $? -ne 0 ]; then\n\
     echo "ERROR: Migrations failed!"\n\
-    echo "Check your DB_CONNECTION, DB_HOST, DB_DATABASE, DB_USERNAME, and DB_PASSWORD environment variables"\n\
     exit 1\n\
 fi\n\
 echo "=== Seeding admin user ==="\n\
-php artisan db:seed --class=AdminSeeder --force || echo "Note: AdminSeeder may have already run (admin exists)"\n\
+DB_CONNECTION=sqlite php artisan db:seed --class=AdminSeeder --force || echo "Note: AdminSeeder may have already run (admin exists)"\n\
 echo "=== Starting Laravel server ==="\n\
 exec php artisan serve --host=0.0.0.0 --port=${PORT:-8080}' > /var/www/start.sh && \
     chmod +x /var/www/start.sh
