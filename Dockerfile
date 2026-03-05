@@ -3,6 +3,8 @@ FROM php:8.4-fpm AS backend
 
 # Prevent interactive prompts during build
 ENV DEBIAN_FRONTEND=noninteractive
+# Force file-based sessions (override any Render env vars)
+ENV SESSION_DRIVER=file
 
 # Install system dependencies required for PHP extensions
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -54,7 +56,9 @@ set -e\n\
 echo "=== Setting session driver to file ==="\n\
 export SESSION_DRIVER=file\n\
 if [ -f /var/www/.env ]; then\n\
-    sed -i "s/^SESSION_DRIVER=.*/SESSION_DRIVER=file/" /var/www/.env || echo "SESSION_DRIVER=file" >> /var/www/.env\n\
+    grep -q "^SESSION_DRIVER=" /var/www/.env && sed -i "s/^SESSION_DRIVER=.*/SESSION_DRIVER=file/" /var/www/.env || echo "SESSION_DRIVER=file" >> /var/www/.env\n\
+else\n\
+    echo "SESSION_DRIVER=file" >> /var/www/.env\n\
 fi\n\
 echo "=== Ensuring directories exist ==="\n\
 mkdir -p /var/www/database /var/www/storage/framework/sessions\n\
@@ -62,11 +66,13 @@ touch /var/www/database/database.sqlite\n\
 chmod 664 /var/www/database/database.sqlite\n\
 chmod -R 775 /var/www/storage /var/www/bootstrap/cache\n\
 chown -R www-data:www-data /var/www/database /var/www/storage /var/www/bootstrap/cache\n\
+echo "=== Removing cached config file ==="\n\
+rm -f /var/www/bootstrap/cache/config.php\n\
 echo "=== Clearing all caches ==="\n\
-php artisan config:clear\n\
-php artisan cache:clear\n\
-php artisan route:clear\n\
-php artisan view:clear\n\
+php artisan config:clear 2>/dev/null || true\n\
+php artisan cache:clear 2>/dev/null || true\n\
+php artisan route:clear 2>/dev/null || true\n\
+php artisan view:clear 2>/dev/null || true\n\
 echo "=== Running database migrations ==="\n\
 php artisan migrate --force\n\
 if [ $? -ne 0 ]; then\n\
