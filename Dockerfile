@@ -7,7 +7,8 @@ ENV DEBIAN_FRONTEND=noninteractive
 # Install system dependencies required for PHP extensions
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential git curl unzip zlib1g-dev libzip-dev libpq-dev libonig-dev libxml2-dev pkg-config zip \
-    && docker-php-ext-install -j$(nproc) pdo pdo_mysql pdo_pgsql mbstring zip \
+    libsqlite3-dev \
+    && docker-php-ext-install -j$(nproc) pdo pdo_mysql pdo_pgsql pdo_sqlite mbstring zip \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Install Composer
@@ -19,10 +20,11 @@ WORKDIR /var/www
 # Copy Laravel app files
 COPY . .
 
-# Ensure storage directories exist with correct permissions
-RUN mkdir -p storage/framework/sessions storage/framework/cache storage/framework/views \
-    && chown -R www-data:www-data storage bootstrap/cache \
-    && chmod -R 775 storage bootstrap/cache
+# Ensure storage directories and SQLite database exist with correct permissions
+RUN mkdir -p database storage/framework/sessions storage/framework/cache storage/framework/views \
+    && touch database/database.sqlite \
+    && chown -R www-data:www-data database storage bootstrap/cache \
+    && chmod -R 775 database storage bootstrap/cache
 
 # Install PHP dependencies
 RUN composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist
