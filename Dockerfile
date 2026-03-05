@@ -50,33 +50,31 @@ RUN php artisan config:clear && \
 # Create startup script that runs migrations and seeders before starting server
 RUN echo '#!/bin/sh\n\
 set -e\n\
-echo "=== Ensuring DB_CONNECTION is set to pgsql ==="\n\
-if [ -z "$DB_CONNECTION" ]; then\n\
-    export DB_CONNECTION=pgsql\n\
-    echo "DB_CONNECTION not set, defaulting to pgsql"\n\
-fi\n\
-if [ -f /var/www/.env ]; then\n\
-    if ! grep -q "^DB_CONNECTION=" /var/www/.env; then\n\
-        echo "DB_CONNECTION=$DB_CONNECTION" >> /var/www/.env\n\
-    else\n\
-        sed -i "s/^DB_CONNECTION=.*/DB_CONNECTION=$DB_CONNECTION/" /var/www/.env\n\
-    fi\n\
-fi\n\
+echo "=== Checking environment variables ==="\n\
+echo "DB_CONNECTION=${DB_CONNECTION:-not set}"\n\
+echo "DB_HOST=${DB_HOST:-not set}"\n\
+echo "DB_DATABASE=${DB_DATABASE:-not set}"\n\
+echo "DB_USERNAME=${DB_USERNAME:-not set}"\n\
 echo "=== Ensuring directories exist ==="\n\
 mkdir -p /var/www/storage/framework/sessions /var/www/storage/framework/cache /var/www/storage/framework/views\n\
 chmod -R 775 /var/www/storage /var/www/bootstrap/cache\n\
 chown -R www-data:www-data /var/www/storage /var/www/bootstrap/cache\n\
-echo "=== Removing cached config file ==="\n\
-rm -f /var/www/bootstrap/cache/config.php\n\
+echo "=== Removing ALL cached files ==="\n\
+rm -rf /var/www/bootstrap/cache/*.php\n\
+rm -rf /var/www/storage/framework/cache/data/*\n\
 echo "=== Clearing all caches ==="\n\
 php artisan config:clear 2>/dev/null || true\n\
 php artisan cache:clear 2>/dev/null || true\n\
 php artisan route:clear 2>/dev/null || true\n\
 php artisan view:clear 2>/dev/null || true\n\
+php artisan optimize:clear 2>/dev/null || true\n\
+echo "=== Verifying database connection ==="\n\
+php artisan db:show 2>&1 || echo "Database connection check failed, but continuing..."\n\
 echo "=== Running database migrations ==="\n\
 php artisan migrate --force\n\
 if [ $? -ne 0 ]; then\n\
     echo "ERROR: Migrations failed!"\n\
+    echo "Check your DB_CONNECTION, DB_HOST, DB_DATABASE, DB_USERNAME, and DB_PASSWORD environment variables"\n\
     exit 1\n\
 fi\n\
 echo "=== Seeding admin user ==="\n\
