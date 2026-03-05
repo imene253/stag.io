@@ -1,4 +1,4 @@
-// routes/api.php 
+// routes/api.php — full updated file
 <?php
 
 use App\Http\Controllers\Api\AuthController;

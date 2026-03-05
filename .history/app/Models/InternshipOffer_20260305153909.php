@@ -30,6 +30,11 @@ class InternshipOffer extends Model
         'deadline'        => 'date',
     ];
 
+    /*
+    |--------------------------------------------------------------------------
+    | Relationships
+    |--------------------------------------------------------------------------
+    */
 
     // The company that created the internship offer
     public function company()
@@ -44,7 +49,11 @@ class InternshipOffer extends Model
         return $this->hasMany(Application::class, 'offer_id');
     }
 
-    
+    /*
+    |--------------------------------------------------------------------------
+    | Query Scopes
+    |--------------------------------------------------------------------------
+    */
 
     // Only open offers
     public function scopeOpen($query)
@@ -70,7 +79,7 @@ class InternshipOffer extends Model
         return $query->where('type', $type);
     }
 
-    // Filter by required skill 
+    // Filter by required skill (JSON column)
     public function scopeBySkill($query, $skill)
     {
         return $query->whereJsonContains('required_skills', $skill);

@@ -32,6 +32,9 @@ class User extends Authenticatable
         'is_active'         => 'boolean',
     ];
 
+    // =====================
+    // Role Helpers
+    // =====================
     public function isStudent(): bool 
     { 
         return $this->role === 'student'; 
