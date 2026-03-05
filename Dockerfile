@@ -3,14 +3,11 @@ FROM php:8.4-fpm AS backend
 
 # Prevent interactive prompts during build
 ENV DEBIAN_FRONTEND=noninteractive
-# Force file-based sessions (override any Render env vars)
-ENV SESSION_DRIVER=file
 
 # Install system dependencies required for PHP extensions
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential git curl unzip zlib1g-dev libzip-dev libpq-dev libonig-dev libxml2-dev pkg-config zip \
-    libsqlite3-dev \
-    && docker-php-ext-install -j$(nproc) pdo pdo_mysql pdo_sqlite mbstring zip \
+    && docker-php-ext-install -j$(nproc) pdo pdo_mysql pdo_pgsql mbstring zip \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Install Composer
@@ -22,10 +19,10 @@ WORKDIR /var/www
 # Copy Laravel app files
 COPY . .
 
-# Ensure SQLite database exists and permissions are correct
-RUN mkdir -p database && touch database/database.sqlite \
-    && chown -R www-data:www-data database storage bootstrap/cache \
-    && chmod -R 775 database storage bootstrap/cache
+# Ensure storage directories exist with correct permissions
+RUN mkdir -p storage/framework/sessions storage/framework/cache storage/framework/views \
+    && chown -R www-data:www-data storage bootstrap/cache \
+    && chmod -R 775 storage bootstrap/cache
 
 # Install PHP dependencies
 RUN composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist
@@ -53,19 +50,10 @@ RUN php artisan config:clear && \
 # Create startup script that runs migrations and seeders before starting server
 RUN echo '#!/bin/sh\n\
 set -e\n\
-echo "=== Setting session driver to file ==="\n\
-export SESSION_DRIVER=file\n\
-if [ -f /var/www/.env ]; then\n\
-    grep -q "^SESSION_DRIVER=" /var/www/.env && sed -i "s/^SESSION_DRIVER=.*/SESSION_DRIVER=file/" /var/www/.env || echo "SESSION_DRIVER=file" >> /var/www/.env\n\
-else\n\
-    echo "SESSION_DRIVER=file" >> /var/www/.env\n\
-fi\n\
 echo "=== Ensuring directories exist ==="\n\
-mkdir -p /var/www/database /var/www/storage/framework/sessions\n\
-touch /var/www/database/database.sqlite\n\
-chmod 664 /var/www/database/database.sqlite\n\
+mkdir -p /var/www/storage/framework/sessions /var/www/storage/framework/cache /var/www/storage/framework/views\n\
 chmod -R 775 /var/www/storage /var/www/bootstrap/cache\n\
-chown -R www-data:www-data /var/www/database /var/www/storage /var/www/bootstrap/cache\n\
+chown -R www-data:www-data /var/www/storage /var/www/bootstrap/cache\n\
 echo "=== Removing cached config file ==="\n\
 rm -f /var/www/bootstrap/cache/config.php\n\
 echo "=== Clearing all caches ==="\n\
