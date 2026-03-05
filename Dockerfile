@@ -51,11 +51,22 @@ RUN php artisan config:clear && \
 # Create startup script that runs migrations and seeders before starting server
 RUN echo '#!/bin/sh\n\
 set -e\n\
-echo "=== Ensuring database file exists ==="\n\
-mkdir -p /var/www/database\n\
+echo "=== Setting session driver to file ==="\n\
+export SESSION_DRIVER=file\n\
+if [ -f /var/www/.env ]; then\n\
+    sed -i "s/^SESSION_DRIVER=.*/SESSION_DRIVER=file/" /var/www/.env || echo "SESSION_DRIVER=file" >> /var/www/.env\n\
+fi\n\
+echo "=== Ensuring directories exist ==="\n\
+mkdir -p /var/www/database /var/www/storage/framework/sessions\n\
 touch /var/www/database/database.sqlite\n\
 chmod 664 /var/www/database/database.sqlite\n\
-chown www-data:www-data /var/www/database/database.sqlite\n\
+chmod -R 775 /var/www/storage /var/www/bootstrap/cache\n\
+chown -R www-data:www-data /var/www/database /var/www/storage /var/www/bootstrap/cache\n\
+echo "=== Clearing all caches ==="\n\
+php artisan config:clear\n\
+php artisan cache:clear\n\
+php artisan route:clear\n\
+php artisan view:clear\n\
 echo "=== Running database migrations ==="\n\
 php artisan migrate --force\n\
 if [ $? -ne 0 ]; then\n\
