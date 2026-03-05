@@ -7,7 +7,8 @@ ENV DEBIAN_FRONTEND=noninteractive
 # Install system dependencies required for PHP extensions
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential git curl unzip zlib1g-dev libzip-dev libpq-dev libonig-dev libxml2-dev pkg-config zip \
-    && docker-php-ext-install -j$(nproc) pdo pdo_mysql mbstring zip \
+    libsqlite3-dev \
+    && docker-php-ext-install -j$(nproc) pdo pdo_mysql pdo_sqlite mbstring zip \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Install Composer
