@@ -226,6 +226,42 @@ paths:
                 $ref: '#/components/schemas/AuthResponse'
         '401':
           description: Invalid credentials
+  /api/create-admin:
+    post:
+      summary: Create an admin user (utility endpoint)
+      description: >
+        Creates a new admin user with the provided name, email, and password.
+        Intended for initial setup via Swagger UI. In production you should
+        protect or remove this endpoint.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name,email,password]
+              properties:
+                name:
+                  type: string
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+      responses:
+        '201':
+          description: Admin created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  user:
+                    $ref: '#/components/schemas/User'
+        '422':
+          description: Validation error (e.g. email already taken)
   /api/me:
     get:
       summary: Get current authenticated user

@@ -129,6 +129,37 @@ class AuthController extends Controller
     }
 
     /**
+     * Create an admin user (utility endpoint for seeding / setup).
+     *
+     * NOTE: This is intentionally left unauthenticated for your current
+     * environment so you can create admins from Swagger. In a real
+     * production environment, you should:
+     * - Protect this with admin-only auth, OR
+     * - Remove this endpoint completely after initial setup.
+     */
+    public function createAdmin(Request $request)
+    {
+        $request->validate([
+            'name'     => ['required', 'string', 'max:255'],
+            'email'    => ['required', 'email', 'unique:users,email'],
+            'password' => ['required', Password::min(8)],
+        ]);
+
+        $user = User::create([
+            'name'      => $request->name,
+            'email'     => $request->email,
+            'password'  => Hash::make($request->password),
+            'role'      => 'admin',
+            'is_active' => true,
+        ]);
+
+        return response()->json([
+            'message' => 'Admin created successfully',
+            'user'    => $user,
+        ], 201);
+    }
+
+    /**
      * @OA\Post(
      *   path="/api/logout",
      *   tags={"Auth"},

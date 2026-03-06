@@ -11,6 +11,7 @@ use Illuminate\Support\Facades\Route;
 // ─── Public ───────────────────────────────────────────────
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login',    [AuthController::class, 'login']);
+Route::post('/create-admin', [AuthController::class, 'createAdmin']); // utility endpoint to create admins
 Route::get('/offers',         [InternshipOfferController::class, 'index']);
 Route::get('/offers/{id}',    [InternshipOfferController::class, 'show']);
 Route::get('/students/{id}/cv', [StudentProfileController::class, 'showPublic']);
