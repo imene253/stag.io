@@ -136,6 +136,30 @@ class AuthController extends Controller
      * production environment, you should:
      * - Protect this with admin-only auth, OR
      * - Remove this endpoint completely after initial setup.
+     *
+     * @OA\Post(
+     *   path="/api/create-admin",
+     *   tags={"Auth"},
+     *   summary="Create an admin user (utility endpoint)",
+     *   description="Creates a new admin user with the provided name, email, and password. Intended for initial setup via Swagger UI.",
+     *   @OA\RequestBody(
+     *     required=true,
+     *     @OA\JsonContent(
+     *       required={"name","email","password"},
+     *       @OA\Property(property="name", type="string"),
+     *       @OA\Property(property="email", type="string", format="email"),
+     *       @OA\Property(property="password", type="string")
+     *     )
+     *   ),
+     *   @OA\Response(
+     *     response=201,
+     *     description="Admin created successfully"
+     *   ),
+     *   @OA\Response(
+     *     response=422,
+     *     description="Validation error (e.g. email already taken)"
+     *   )
+     * )
      */
     public function createAdmin(Request $request)
     {
