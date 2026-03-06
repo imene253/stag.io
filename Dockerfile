@@ -84,11 +84,11 @@ rm -rf /var/www/bootstrap/cache/*\n\
 rm -rf /var/www/storage/framework/cache/*\n\
 rm -rf /var/www/storage/framework/views/*\n\
 echo "=== Clearing all caches with SQLite ==="\n\
-DB_CONNECTION=sqlite php artisan config:clear 2>&1\n\
-DB_CONNECTION=sqlite php artisan cache:clear 2>&1\n\
-DB_CONNECTION=sqlite php artisan route:clear 2>&1\n\
-DB_CONNECTION=sqlite php artisan view:clear 2>&1\n\
-DB_CONNECTION=sqlite php artisan optimize:clear 2>&1\n\
+DB_CONNECTION=sqlite php artisan config:clear 2>&1 || echo "config:clear failed (continuing)"\n\
+DB_CONNECTION=sqlite php artisan cache:clear 2>&1 || echo "cache:clear failed (continuing)"\n\
+DB_CONNECTION=sqlite php artisan route:clear 2>&1 || echo "route:clear failed (continuing)"\n\
+DB_CONNECTION=sqlite php artisan view:clear 2>&1 || echo "view:clear failed (continuing)"\n\
+DB_CONNECTION=sqlite php artisan optimize:clear 2>&1 || echo "optimize:clear failed (continuing)"\n\
 echo "=== Running database migrations with SQLite ==="\n\
 DB_CONNECTION=sqlite php artisan migrate --force\n\
 if [ $? -ne 0 ]; then\n\
