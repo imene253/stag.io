@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Application;
 use App\Models\Convention;
 use App\Services\ConventionService;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 
@@ -66,7 +67,8 @@ class ConventionController extends Controller
     public function download(Request $request, $id)
     {
         $convention = Convention::with([
-            'application.offer',
+            'application.student.studentProfile',
+            'application.offer.company.companyProfile',
         ])->find($id);
 
         if (! $convention) {
@@ -84,26 +86,31 @@ class ConventionController extends Controller
             return response()->json(['message' => 'Unauthorized.'], 403);
         }
 
-        // If the physical file is missing (e.g. after a new deploy),
-        // regenerate the convention PDF for this application.
-        if (! Storage::disk('local')->exists($convention->file_path)) {
-            $application = Application::where('id', $convention->application_id)
-                ->where('status', 'validated')
-                ->with([
-                    'student.studentProfile',
-                    'offer.company.companyProfile',
-                ])
-                ->first();
+        // Always render the PDF in memory from current DB data.
+        $studentProfile = $application->student->studentProfile;
+        $companyProfile = $application->offer->company->companyProfile;
+        $offer          = $application->offer;
 
-            if ($application) {
-                $convention = $this->conventionService->regenerate($application);
-            } else {
-                return response()->json(['message' => 'File not found on server and application is not in a state to regenerate.'], 404);
-            }
-        }
+        $pdf = Pdf::loadView('pdf.convention', [
+            'university_name'    => config('university.name'),
+            'department'         => config('university.department'),
+            'department_head'    => config('university.department_head'),
+            'university_address' => config('university.address'),
+            'student'            => $studentProfile,
+            'company'            => $companyProfile,
+            'offer'              => $offer,
+            'convention_number'  => $convention->convention_number,
+        ])->setPaper('a4', 'portrait')
+          ->setOptions([
+              'isHtml5ParserEnabled' => true,
+              'isRemoteEnabled'      => false,
+              'defaultFont'          => 'DejaVu Sans',
+          ]);
 
-        return response()->download(
-            storage_path('app/' . $convention->file_path),
+        return response()->streamDownload(
+            function () use ($pdf) {
+                echo $pdf->output();
+            },
             $convention->convention_number . '.pdf',
             ['Content-Type' => 'application/pdf']
         );
