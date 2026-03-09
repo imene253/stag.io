@@ -84,8 +84,22 @@ class ConventionController extends Controller
             return response()->json(['message' => 'Unauthorized.'], 403);
         }
 
+        // If the physical file is missing (e.g. after a new deploy),
+        // regenerate the convention PDF for this application.
         if (! Storage::disk('local')->exists($convention->file_path)) {
-            return response()->json(['message' => 'File not found on server.'], 404);
+            $application = Application::where('id', $convention->application_id)
+                ->where('status', 'validated')
+                ->with([
+                    'student.studentProfile',
+                    'offer.company.companyProfile',
+                ])
+                ->first();
+
+            if ($application) {
+                $convention = $this->conventionService->regenerate($application);
+            } else {
+                return response()->json(['message' => 'File not found on server and application is not in a state to regenerate.'], 404);
+            }
         }
 
         return response()->download(
