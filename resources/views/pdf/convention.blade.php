@@ -163,7 +163,6 @@
     <div class="header">
         <div class="ministry">République Algérienne Démocratique et Populaire</div>
         <div class="ministry">Ministère de l'Enseignement Supérieur et de la Recherche Scientifique</div>
-        <div class="university">{{ $university_name }}</div>
         <div class="doc-title">Convention de Stage</div>
         <div class="convention-number">N° {{ $convention_number }} — {{ \Carbon\Carbon::now()->format('Y') }}</div>
     </div>
@@ -176,27 +175,7 @@
         </p>
     </div>
 
-    <div class="section">
-        <div class="section-title">Article 1 — Établissement d'Enseignement</div>
-        <table>
-            <tr>
-                <td class="label">Établissement</td>
-                <td>{{ $university_name }}</td>
-            </tr>
-            <tr>
-                <td class="label">Département</td>
-                <td>{{ $department }}</td>
-            </tr>
-            <tr>
-                <td class="label">Responsable pédagogique</td>
-                <td>{{ $department_head }}</td>
-            </tr>
-            <tr>
-                <td class="label">Adresse</td>
-                <td>{{ $university_address }}</td>
-            </tr>
-        </table>
-    </div>
+    {{-- Article 1 (établissement) intentionally removed to keep the convention generic --}}
 
     <div class="section">
         <div class="section-title">Article 2 — Étudiant(e) Stagiaire</div>
@@ -339,11 +318,6 @@
         <table>
             <tr>
                 <td style="width:33%">
-                    <strong>Le Responsable Pédagogique</strong>
-                    <div style="font-size:11px; color:#555;">{{ $university_name }}</div>
-                    <div class="sig-box">Signature & Cachet</div>
-                </td>
-                <td style="width:33%">
                     <strong>Le Maître de Stage</strong>
                     <div style="font-size:11px; color:#555;">{{ $company->company_name }}</div>
                     <div class="sig-box">Signature & Cachet</div>
@@ -359,8 +333,7 @@
 
     <div class="footer">
         Convention de Stage N° {{ $convention_number }} —
-        Généré automatiquement par Stag.io le {{ \Carbon\Carbon::now()->format('d/m/Y à H:i') }} —
-        {{ $university_name }}
+        Généré automatiquement par Stag.io le {{ \Carbon\Carbon::now()->format('d/m/Y à H:i') }}
     </div>
 
 </body>
