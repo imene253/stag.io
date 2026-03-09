@@ -846,6 +846,68 @@ paths:
                     $ref: '#/components/schemas/Application'
         '404':
           description: Application not found or not in accepted status
+  /api/admin/applications/{id}/convention:
+    get:
+      summary: Generate and download Convention de Stage PDF for a validated application (admin only)
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Convention de Stage PDF
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+        '404':
+          description: Application not found or not in validated status
+  /api/conventions/{id}/download:
+    get:
+      summary: Download Convention de Stage PDF
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Convention de Stage PDF
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+        '403':
+          description: Forbidden
+        '404':
+          description: Convention not found
+  /api/student/convention:
+    get:
+      summary: Get current student's convention metadata
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Convention found
+        '404':
+          description: No convention found yet
+  /api/admin/conventions:
+    get:
+      summary: List all conventions (admin only)
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Paginated list of conventions
   /api/admin/applications/{id}/reject:
     put:
       summary: Reject an accepted application (admin only)

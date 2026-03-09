@@ -30,7 +30,7 @@ class Application extends Model
                     ->with('company');
     }
 
-    
+    // NEW RELATIONSHIP
     public function convention()
     {
         return $this->hasOne(Convention::class);

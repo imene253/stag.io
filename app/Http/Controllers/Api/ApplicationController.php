@@ -5,10 +5,15 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Application;
 use App\Models\InternshipOffer;
+use App\Services\ConventionService;
 use Illuminate\Http\Request;
 
 class ApplicationController extends Controller
 {
+    public function __construct(
+        protected ConventionService $conventionService
+    ) {
+    }
    
     public function apply(Request $request, $offerId)
     {
@@ -182,7 +187,7 @@ class ApplicationController extends Controller
     public function validate(Request $request, $id)
     {
         $application = Application::where('id', $id)
-            ->where('status', 'accepted') 
+            ->where('status', 'accepted')
             ->first();
 
         if (! $application) {
@@ -200,12 +205,17 @@ class ApplicationController extends Controller
             'admin_note' => $request->admin_note,
         ]);
 
-      
+        // Auto-generate the Convention PDF immediately after validation
+        if (! $application->convention) {
+            $this->conventionService->generate($application);
+        }
+
         return response()->json([
-            'message'     => 'Application validated. Convention de Stage will be generated.',
+            'message'     => 'Application validated and Convention de Stage generated.',
             'application' => $application->fresh()->load([
                 'student.studentProfile',
                 'offer.company.companyProfile',
+                'convention',
             ]),
         ]);
     }
