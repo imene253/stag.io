@@ -3,6 +3,19 @@ info:
   title: stag.io API
   version: 1.0.0
   description: API documentation for the stag.io backend (authentication, student & company profiles)
+tags:
+  - name: Auth
+    description: Authentication and user bootstrap
+  - name: Student
+    description: Student-only endpoints
+  - name: Company
+    description: Company-only endpoints
+  - name: Admin
+    description: Administration-only endpoints
+  - name: Public
+    description: Public, unauthenticated endpoints
+  - name: Conventions
+    description: Convention de stage generation and download
 servers:
   - url: https://stag-io-8.onrender.com
 security:
@@ -171,6 +184,7 @@ components:
 paths:
   /api/register:
     post:
+      tags: ["Auth"]
       summary: Register a new user (student or company)
       requestBody:
         required: true
@@ -203,6 +217,7 @@ paths:
           description: Validation error
   /api/login:
     post:
+      tags: ["Auth"]
       summary: Login and receive an API token
       requestBody:
         required: true
@@ -228,6 +243,7 @@ paths:
           description: Invalid credentials
   /api/create-admin:
     post:
+      tags: ["Auth"]
       summary: Create an admin user (utility endpoint)
       description: >
         Creates a new admin user with the provided name, email, and password.
@@ -264,6 +280,7 @@ paths:
           description: Validation error (e.g. email already taken)
   /api/me:
     get:
+      tags: ["Auth"]
       summary: Get current authenticated user
       security:
         - bearerAuth: []
@@ -278,6 +295,7 @@ paths:
           description: Unauthenticated
   /api/logout:
     post:
+      tags: ["Auth"]
       summary: Revoke current token (logout)
       security:
         - bearerAuth: []
@@ -286,6 +304,7 @@ paths:
           description: Logged out
   /api/student/profile:
     get:
+      tags: ["Student"]
       summary: Get authenticated student's profile
       security:
         - bearerAuth: []
@@ -301,6 +320,7 @@ paths:
         '404':
           description: Profile not found
     put:
+      tags: ["Student"]
       summary: Update authenticated student's profile
       security:
         - bearerAuth: []
@@ -334,6 +354,7 @@ paths:
           description: Forbidden (wrong role)
   /api/company/profile:
     get:
+      tags: ["Company"]
       summary: Get authenticated company's profile
       security:
         - bearerAuth: []
@@ -349,6 +370,7 @@ paths:
         '404':
           description: Profile not found
     put:
+      tags: ["Company"]
       summary: Update authenticated company's profile
       security:
         - bearerAuth: []
@@ -378,6 +400,7 @@ paths:
           description: Forbidden (wrong role)
   /api/students/{id}/cv:
     get:
+      tags: ["Public"]
       summary: Public view of a student's CV/profile
       parameters:
         - in: path
@@ -396,6 +419,7 @@ paths:
           description: Not found
   /api/companies/{id}:
     get:
+      tags: ["Public"]
       summary: Public view of a company profile
       parameters:
         - in: path
@@ -414,6 +438,7 @@ paths:
           description: Not found
   /api/offers:
     get:
+      tags: ["Public"]
       summary: List public internship offers with optional filters
       parameters:
         - in: query
@@ -455,6 +480,7 @@ paths:
                   total: { type: integer }
   /api/offers/{id}:
     get:
+      tags: ["Public"]
       summary: Get a single internship offer (public)
       parameters:
         - in: path
@@ -476,6 +502,7 @@ paths:
           description: Offer not found
   /api/company/offers:
     get:
+      tags: ["Company"]
       summary: List internship offers created by the authenticated company
       security:
         - bearerAuth: []
@@ -498,6 +525,7 @@ paths:
         '401':
           description: Unauthenticated
     post:
+      tags: ["Company"]
       summary: Create a new internship offer (company only)
       security:
         - bearerAuth: []
@@ -546,6 +574,7 @@ paths:
           description: Validation error
   /api/company/offers/{id}:
     put:
+      tags: ["Company"]
       summary: Update an existing internship offer (company only, must own offer)
       security:
         - bearerAuth: []
@@ -602,6 +631,7 @@ paths:
           description: Offer not found or not owned by the company
   /api/student/offers/{id}/apply:
     post:
+      tags: ["Student"]
       summary: Apply to an internship offer (student only)
       security:
         - bearerAuth: []
@@ -638,6 +668,7 @@ paths:
           description: Student has already applied to this offer
   /api/student/applications:
     get:
+      tags: ["Student"]
       summary: List applications of the authenticated student
       security:
         - bearerAuth: []
@@ -659,6 +690,7 @@ paths:
                   total: { type: integer }
   /api/student/applications/{id}:
     delete:
+      tags: ["Student"]
       summary: Cancel a pending application (student only)
       security:
         - bearerAuth: []
@@ -683,6 +715,7 @@ paths:
           description: Application not found
   /api/company/offers/{id}/applications:
     get:
+      tags: ["Company"]
       summary: List applications for a specific offer owned by the authenticated company
       security:
         - bearerAuth: []
@@ -712,6 +745,7 @@ paths:
           description: Offer not found or not owned by the company
   /api/company/applications/{id}/accept:
     put:
+      tags: ["Company"]
       summary: Accept a student's application (company only, must own offer)
       security:
         - bearerAuth: []
@@ -738,6 +772,7 @@ paths:
           description: Application not found or not owned by the company
   /api/company/applications/{id}/refuse:
     put:
+      tags: ["Company"]
       summary: Refuse a student's application (company only, must own offer)
       security:
         - bearerAuth: []
@@ -764,6 +799,7 @@ paths:
           description: Application not found or not owned by the company
   /api/admin/applications:
     get:
+      tags: ["Admin"]
       summary: List applications for administration (admin only)
       security:
         - bearerAuth: []
@@ -793,6 +829,7 @@ paths:
                   total: { type: integer }
   /api/admin/applications/pending:
     get:
+      tags: ["Admin"]
       summary: List applications pending validation (status=accepted) for admin
       security:
         - bearerAuth: []
@@ -814,6 +851,7 @@ paths:
                   total: { type: integer }
   /api/admin/applications/{id}/validate:
     put:
+      tags: ["Admin"]
       summary: Validate an accepted application (admin only)
       security:
         - bearerAuth: []
@@ -848,6 +886,7 @@ paths:
           description: Application not found or not in accepted status
   /api/admin/applications/{id}/convention:
     get:
+      tags: ["Admin", "Conventions"]
       summary: Generate and download Convention de Stage PDF for a validated application (admin only)
       security:
         - bearerAuth: []
@@ -869,6 +908,7 @@ paths:
           description: Application not found or not in validated status
   /api/conventions/{id}/download:
     get:
+      tags: ["Conventions"]
       summary: Download Convention de Stage PDF
       security:
         - bearerAuth: []
@@ -892,6 +932,7 @@ paths:
           description: Convention not found
   /api/student/convention:
     get:
+      tags: ["Student", "Conventions"]
       summary: Get current student's convention metadata
       security:
         - bearerAuth: []
@@ -902,6 +943,7 @@ paths:
           description: No convention found yet
   /api/admin/conventions:
     get:
+      tags: ["Admin", "Conventions"]
       summary: List all conventions (admin only)
       security:
         - bearerAuth: []
