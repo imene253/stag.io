@@ -48,6 +48,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/offers/{id}/applications', [ApplicationController::class, 'offerApplicants']);
         Route::put('/applications/{id}/accept', [ApplicationController::class, 'accept']);
         Route::put('/applications/{id}/refuse', [ApplicationController::class, 'refuse']);
+        Route::get('/conventions',        [ConventionController::class, 'companyConventions']);
     });
 
     // ── Admin ─────────────────────────────────────────────
@@ -62,7 +63,6 @@ Route::middleware('auth:sanctum')->group(function () {
         // Conventions
         Route::get('/conventions',                        [ConventionController::class, 'index']);
         Route::post('/applications/{id}/generate',        [ConventionController::class, 'generate']);       // manual generate/regenerate
-        Route::post('/conventions/{id}/send',             [ConventionController::class, 'send']);           // email to student + company
     });
 
 });

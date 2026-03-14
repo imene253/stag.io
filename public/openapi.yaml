@@ -797,6 +797,15 @@ paths:
           description: Only pending applications can be refused
         '404':
           description: Application not found or not owned by the company
+  /api/company/conventions:
+    get:
+      tags: ["Company", "Conventions"]
+      summary: List conventions for offers owned by the authenticated company
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Paginated list of conventions with download URLs
   /api/admin/applications:
     get:
       tags: ["Admin"]
