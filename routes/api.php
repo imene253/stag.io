@@ -62,6 +62,7 @@ Route::middleware('auth:sanctum')->group(function () {
         // Conventions
         Route::get('/conventions',                        [ConventionController::class, 'index']);
         Route::post('/applications/{id}/generate',        [ConventionController::class, 'generate']);       // manual generate/regenerate
+        Route::post('/conventions/{id}/send',             [ConventionController::class, 'send']);           // email to student + company
     });
 
 });

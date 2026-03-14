@@ -5,10 +5,11 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Application;
 use App\Models\Convention;
+use App\Mail\ConventionMail;
 use App\Services\ConventionService;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Mail;
 
 class ConventionController extends Controller
 {
@@ -61,6 +62,66 @@ class ConventionController extends Controller
             'convention'   => $convention,
             'download_url' => url('api/conventions/' . $convention->id . '/download'),
         ], 201);
+    }
+
+    // ADMIN — SEND CONVENTION PDF TO STUDENT AND COMPANY BY EMAIL
+    public function send(Request $request, $id)
+    {
+        $convention = Convention::with([
+            'application.student.studentProfile',
+            'application.offer.company.companyProfile',
+        ])->find($id);
+
+        if (! $convention) {
+            return response()->json(['message' => 'Convention not found.'], 404);
+        }
+
+        // admin-only route is already protected by middleware('role:admin')
+        $application    = $convention->application;
+        $studentProfile = $application->student->studentProfile;
+        $company        = $application->offer->company;
+        $companyProfile = $company->companyProfile;
+
+        // Render PDF in memory (same as download)
+        $pdf = Pdf::loadView('pdf.convention', [
+            'university_name'    => config('university.name'),
+            'department'         => config('university.department'),
+            'department_head'    => config('university.department_head'),
+            'university_address' => config('university.address'),
+            'student'            => $studentProfile,
+            'company'            => $companyProfile,
+            'offer'              => $application->offer,
+            'convention_number'  => $convention->convention_number,
+        ])->setPaper('a4', 'portrait')
+          ->setOptions([
+              'isHtml5ParserEnabled' => true,
+              'isRemoteEnabled'      => false,
+              'defaultFont'          => 'DejaVu Sans',
+          ]);
+
+        $pdfContent = $pdf->output();
+
+        // Send to student
+        if ($studentProfile && $studentProfile->email) {
+            Mail::to($studentProfile->email)->send(
+                new ConventionMail($convention, 'student', $pdfContent)
+            );
+        }
+
+        // Send to company
+        if ($company && $company->email) {
+            Mail::to($company->email)->send(
+                new ConventionMail($convention, 'company', $pdfContent)
+            );
+        }
+
+        return response()->json([
+            'message' => 'Convention sent by email to student and company (when emails are available).',
+            'sent_to' => [
+                'student' => $studentProfile?->email,
+                'company' => $company?->email,
+            ],
+        ]);
     }
 
     // DOWNLOAD PDF (student, company, admin)
