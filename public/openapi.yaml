@@ -17,7 +17,7 @@ tags:
   - name: Conventions
     description: Convention de stage generation and download
 servers:
-  - url: https://stag-io-8.onrender.com
+  - url: https://stag-io-q9gn.onrender.com
 security:
   - bearerAuth: []
 components:
