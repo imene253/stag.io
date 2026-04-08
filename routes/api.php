@@ -5,6 +5,7 @@ use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\CompanyProfileController;
 use App\Http\Controllers\Api\ConventionController;
 use App\Http\Controllers\Api\InternshipOfferController;
+use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\StudentProfileController;
 use Illuminate\Support\Facades\Route;
 
@@ -22,6 +23,10 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/me',      [AuthController::class, 'me']);
+    Route::get('/notifications', [NotificationController::class, 'index']);
+    Route::get('/notifications/unread-count', [NotificationController::class, 'unreadCount']);
+    Route::put('/notifications/{id}/read', [NotificationController::class, 'markAsRead']);
+    Route::put('/notifications/read-all', [NotificationController::class, 'markAllAsRead']);
 
     // Download (student + company + admin)
     Route::get('/conventions/{id}/download', [ConventionController::class, 'download']);
@@ -52,6 +57,11 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // ── Admin ─────────────────────────────────────────────
     Route::middleware('role:admin')->prefix('admin')->group(function () {
+        // Company approvals
+        Route::get('/companies/pending',            [AuthController::class, 'pendingCompanies']);
+        Route::put('/companies/{id}/approve',       [AuthController::class, 'approveCompany']);
+        Route::put('/companies/{id}/reject',        [AuthController::class, 'rejectCompany']);
+
         // Applications
         Route::get('/applications',               [ApplicationController::class, 'adminIndex']);
         Route::get('/applications/pending',       [ApplicationController::class, 'pendingValidation']);

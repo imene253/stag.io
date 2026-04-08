@@ -4,8 +4,12 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Notifications\CompanyApprovedNotification;
+use App\Notifications\CompanyRegistrationPendingApprovalNotification;
+use App\Notifications\CompanyRejectedNotification;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rules\Password;
 use Illuminate\Validation\ValidationException;
 
@@ -39,11 +43,21 @@ class AuthController extends Controller
             'role'     => ['required', 'in:student,company'], 
         ]);
 
+        if ($request->role === 'student' && ! $this->isUniversityEmail($request->email)) {
+            return response()->json([
+                'message' => 'Validation error.',
+                'errors' => [
+                    'email' => ['Students must register with a university email address.'],
+                ],
+            ], 422);
+        }
+
         $user = User::create([
             'name'     => $request->name,
             'email'    => $request->email,
             'password' => $request->password,
             'role'     => $request->role,
+            'is_active'=> $request->role === 'student',
         ]);
 
        
@@ -58,6 +72,13 @@ class AuthController extends Controller
                 'user_id'      => $user->id,
                 'company_name' => $request->name,
             ]);
+
+            // Notify admins a new company requires approval.
+            User::where('role', 'admin')->get()->each(function (User $admin) use ($user): void {
+                $admin->notify(
+                    new CompanyRegistrationPendingApprovalNotification($user)
+                );
+            });
         }
 
         $token = $user->createToken('auth_token')->plainTextToken;
@@ -65,7 +86,9 @@ class AuthController extends Controller
         $relation = $user->isStudent() ? 'studentProfile' : 'companyProfile';
 
         return response()->json([
-            'message' => 'Registration successful',
+            'message' => $user->isCompany()
+                ? 'Registration successful. Your company account is pending admin approval.'
+                : 'Registration successful',
             'token'   => $token,
             'role'    => $user->role,
             'user'    => $user->load($relation),
@@ -224,5 +247,87 @@ class AuthController extends Controller
             'user' => $relation ? $user->load($relation) : $user,
             'role' => $user->role,
         ]);
+    }
+
+    public function pendingCompanies()
+    {
+        $companies = User::query()
+            ->where('role', 'company')
+            ->where('is_active', false)
+            ->with('companyProfile')
+            ->latest()
+            ->paginate(15);
+
+        return response()->json($companies);
+    }
+
+    public function approveCompany(string $id)
+    {
+        $company = User::query()
+            ->where('id', $id)
+            ->where('role', 'company')
+            ->first();
+
+        if (! $company) {
+            return response()->json([
+                'message' => 'Company not found.',
+            ], 404);
+        }
+
+        $company->update(['is_active' => true]);
+        $company->notify(new CompanyApprovedNotification($company));
+
+        return response()->json([
+            'message' => 'Company approved successfully.',
+            'user' => $company->fresh()->load('companyProfile'),
+        ]);
+    }
+
+    public function rejectCompany(string $id)
+    {
+        $company = User::query()
+            ->where('id', $id)
+            ->where('role', 'company')
+            ->first();
+
+        if (! $company) {
+            return response()->json([
+                'message' => 'Company not found.',
+            ], 404);
+        }
+
+        $company->update(['is_active' => false]);
+        $company->notify(new CompanyRejectedNotification($company));
+
+        return response()->json([
+            'message' => 'Company set to pending/inactive.',
+            'user' => $company->fresh()->load('companyProfile'),
+        ]);
+    }
+
+    private function isUniversityEmail(string $email): bool
+    {
+        $domain = Str::lower(Str::after($email, '@'));
+
+        if ($domain === '' || ! Str::contains($email, '@')) {
+            return false;
+        }
+
+        $allowedDomains = array_values(array_filter(array_map(
+            static fn (string $value): string => Str::lower(trim($value)),
+            explode(',', (string) env('UNIVERSITY_EMAIL_DOMAINS', ''))
+        )));
+
+        if (empty($allowedDomains)) {
+            return Str::endsWith($domain, '.edu');
+        }
+
+        foreach ($allowedDomains as $allowedDomain) {
+            if ($domain === $allowedDomain || Str::endsWith($domain, '.'.$allowedDomain)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

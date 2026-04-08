@@ -5,6 +5,12 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Application;
 use App\Models\InternshipOffer;
+use App\Models\User;
+use App\Notifications\AdminRejectedApplicationNotification;
+use App\Notifications\AdminValidatedApplicationNotification;
+use App\Notifications\CompanyAcceptedApplicationNotification;
+use App\Notifications\CompanyAcceptedNeedsAdminValidationNotification;
+use App\Notifications\CompanyRefusedApplicationNotification;
 use App\Services\ConventionService;
 use Illuminate\Http\Request;
 
@@ -134,7 +140,17 @@ class ApplicationController extends Controller
 
         $application->update(['status' => 'accepted']);
 
-     
+        // Notify student who owns this application.
+        $application->student->notify(
+            new CompanyAcceptedApplicationNotification($application->fresh()->load('offer.company'))
+        );
+
+        // Notify all admins that this accepted application needs validation.
+        User::where('role', 'admin')->get()->each(function (User $admin) use ($application): void {
+            $admin->notify(
+                new CompanyAcceptedNeedsAdminValidationNotification($application->fresh()->load('student', 'offer.company'))
+            );
+        });
 
         return response()->json([
             'message'     => 'Candidate accepted. Admin has been notified for validation.',
@@ -164,6 +180,10 @@ class ApplicationController extends Controller
         }
 
         $application->update(['status' => 'refused']);
+
+        $application->student->notify(
+            new CompanyRefusedApplicationNotification($application->fresh()->load('offer.company'))
+        );
 
         return response()->json([
             'message'     => 'Candidate refused.',
@@ -205,6 +225,10 @@ class ApplicationController extends Controller
             'admin_note' => $request->admin_note,
         ]);
 
+        $application = $application->fresh()->load('student', 'offer.company');
+        $application->student->notify(new AdminValidatedApplicationNotification($application));
+        $application->offer->company->notify(new AdminValidatedApplicationNotification($application));
+
         // Auto-generate the Convention PDF immediately after validation
         if (! $application->convention) {
             $this->conventionService->generate($application);
@@ -241,6 +265,10 @@ class ApplicationController extends Controller
             'status'     => 'rejected',
             'admin_note' => $request->admin_note,
         ]);
+
+        $application = $application->fresh()->load('student', 'offer.company');
+        $application->student->notify(new AdminRejectedApplicationNotification($application));
+        $application->offer->company->notify(new AdminRejectedApplicationNotification($application));
 
         return response()->json([
             'message'     => 'Application rejected by administration.',

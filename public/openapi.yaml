@@ -16,6 +16,8 @@ tags:
     description: Public, unauthenticated endpoints
   - name: Conventions
     description: Convention de stage generation and download
+  - name: Notifications
+    description: User notifications (student/company/admin)
 servers:
   - url: https://stag-io-q9gn.onrender.com
 security:
@@ -186,6 +188,10 @@ paths:
     post:
       tags: ["Auth"]
       summary: Register a new user (student or company)
+      description: >
+        Students must register with a university email.
+        Allowed domains come from UNIVERSITY_EMAIL_DOMAINS (comma-separated),
+        otherwise the fallback rule is any domain ending with .edu.
       requestBody:
         required: true
         content:
@@ -205,7 +211,7 @@ paths:
                   type: string
                 role:
                   type: string
-                  enum: [student,company,admin]
+                  enum: [student,company]
       responses:
         '201':
           description: Registration successful
@@ -215,6 +221,128 @@ paths:
                 $ref: '#/components/schemas/AuthResponse'
         '422':
           description: Validation error
+  /api/notifications:
+    get:
+      tags: ["Notifications"]
+      summary: List authenticated user's notifications
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Paginated list of notifications
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: string }
+                        type: { type: string }
+                        data: { type: object }
+                        read_at:
+                          type: string
+                          nullable: true
+                        created_at:
+                          type: string
+                          format: date-time
+  /api/notifications/unread-count:
+    get:
+      tags: ["Notifications"]
+      summary: Get unread notifications count
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Unread notifications count
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  unread_count:
+                    type: integer
+  /api/notifications/{id}/read:
+    put:
+      tags: ["Notifications"]
+      summary: Mark one notification as read
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Notification marked as read
+        '404':
+          description: Notification not found
+  /api/notifications/read-all:
+    put:
+      tags: ["Notifications"]
+      summary: Mark all authenticated user's notifications as read
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: All notifications marked as read
+  /api/admin/companies/pending:
+    get:
+      tags: ["Admin"]
+      summary: List companies pending admin approval
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Paginated list of pending companies
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/User'
+  /api/admin/companies/{id}/approve:
+    put:
+      tags: ["Admin"]
+      summary: Approve a company account
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Company approved
+        '404':
+          description: Company not found
+  /api/admin/companies/{id}/reject:
+    put:
+      tags: ["Admin"]
+      summary: Reject or set a company account to inactive
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Company set inactive
+        '404':
+          description: Company not found
   /api/login:
     post:
       tags: ["Auth"]

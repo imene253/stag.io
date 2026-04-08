@@ -16,6 +16,13 @@ class RoleMiddleware
             ], 403);
         }
 
+        // Companies must be approved by admin before using company endpoints.
+        if ($request->user()->role === 'company' && ! $request->user()->is_active) {
+            return response()->json([
+                'message' => 'Your company account is pending admin approval.'
+            ], 403);
+        }
+
         return $next($request);
     }
 }
