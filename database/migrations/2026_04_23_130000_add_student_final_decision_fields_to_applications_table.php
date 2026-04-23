@@ -15,16 +15,34 @@ return new class extends Migration
             $table->date('internship_ends_at')->nullable()->after('internship_starts_at');
         });
 
-        DB::statement(
-            "ALTER TABLE applications MODIFY COLUMN status ENUM('pending','accepted','refused','validated','rejected','selected') NOT NULL DEFAULT 'pending'"
-        );
+        $driver = Schema::getConnection()->getDriverName();
+
+        if ($driver === 'mysql') {
+            DB::statement(
+                "ALTER TABLE applications MODIFY COLUMN status ENUM('pending','accepted','refused','validated','rejected','selected') NOT NULL DEFAULT 'pending'"
+            );
+        } elseif ($driver === 'pgsql') {
+            DB::statement("ALTER TABLE applications DROP CONSTRAINT IF EXISTS applications_status_check");
+            DB::statement(
+                "ALTER TABLE applications ADD CONSTRAINT applications_status_check CHECK (status IN ('pending','accepted','refused','validated','rejected','selected'))"
+            );
+        }
     }
 
     public function down(): void
     {
-        DB::statement(
-            "ALTER TABLE applications MODIFY COLUMN status ENUM('pending','accepted','refused','validated','rejected') NOT NULL DEFAULT 'pending'"
-        );
+        $driver = Schema::getConnection()->getDriverName();
+
+        if ($driver === 'mysql') {
+            DB::statement(
+                "ALTER TABLE applications MODIFY COLUMN status ENUM('pending','accepted','refused','validated','rejected') NOT NULL DEFAULT 'pending'"
+            );
+        } elseif ($driver === 'pgsql') {
+            DB::statement("ALTER TABLE applications DROP CONSTRAINT IF EXISTS applications_status_check");
+            DB::statement(
+                "ALTER TABLE applications ADD CONSTRAINT applications_status_check CHECK (status IN ('pending','accepted','refused','validated','rejected'))"
+            );
+        }
 
         Schema::table('applications', function (Blueprint $table): void {
             $table->dropColumn([
