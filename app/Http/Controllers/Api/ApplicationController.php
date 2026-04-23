@@ -329,12 +329,12 @@ class ApplicationController extends Controller
     public function reject(Request $request, $id)
     {
         $application = Application::where('id', $id)
-            ->where('status', 'accepted')
+            ->where('status', 'selected')
             ->first();
 
         if (! $application) {
             return response()->json([
-                'message' => 'Application not found or not in accepted status.'
+                'message' => 'Application not found or student has not made final selection yet.'
             ], 404);
         }
 

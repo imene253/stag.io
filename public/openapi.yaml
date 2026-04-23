@@ -1074,12 +1074,12 @@ paths:
   /api/admin/applications/pending:
     get:
       tags: ["Admin"]
-      summary: List applications pending validation (status=accepted) for admin
+      summary: List applications pending validation (status=selected) for admin
       security:
         - bearerAuth: []
       responses:
         '200':
-          description: Paginated list of accepted applications awaiting validation
+          description: Paginated list of selected applications awaiting validation
           content:
             application/json:
               schema:
@@ -1096,7 +1096,7 @@ paths:
   /api/admin/applications/{id}/validate:
     put:
       tags: ["Admin"]
-      summary: Validate an accepted application (admin only)
+      summary: Validate a selected application (admin only)
       security:
         - bearerAuth: []
       parameters:
@@ -1127,7 +1127,7 @@ paths:
                   application:
                     $ref: '#/components/schemas/Application'
         '404':
-          description: Application not found or not in accepted status
+          description: Application not found or not in selected status
   /api/admin/applications/{id}/convention:
     get:
       tags: ["Admin", "Conventions"]
@@ -1196,7 +1196,7 @@ paths:
           description: Paginated list of conventions
   /api/admin/applications/{id}/reject:
     put:
-      summary: Reject an accepted application (admin only)
+      summary: Reject a selected application (admin only)
       security:
         - bearerAuth: []
       parameters:
@@ -1227,7 +1227,7 @@ paths:
                   application:
                     $ref: '#/components/schemas/Application'
         '404':
-          description: Application not found or not in accepted status
+          description: Application not found or not in selected status
   /api/admin/stats:
     get:
       summary: Global statistics for applications and offers (admin only)
