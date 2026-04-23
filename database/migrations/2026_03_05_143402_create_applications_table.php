@@ -29,7 +29,8 @@ return new class extends Migration
                 'accepted',   
                 'refused',    
                 'validated', 
-                'rejected',   
+                'rejected',
+                'selected',
             ])->default('pending');
 
             // ─── Optional cover letter ─────────────────────────
@@ -37,6 +38,11 @@ return new class extends Migration
 
             // ─── Admin notes ───────────────────────────────────
             $table->text('admin_note')->nullable();
+
+            // ─── Student final decision / lock window ──────────
+            $table->timestamp('selected_at')->nullable();
+            $table->date('internship_starts_at')->nullable();
+            $table->date('internship_ends_at')->nullable();
 
             // ─── Unique: one application per student per offer ─
             $table->unique(['student_id', 'offer_id']);

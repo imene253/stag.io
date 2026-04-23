@@ -12,7 +12,9 @@ use App\Notifications\CompanyAcceptedApplicationNotification;
 use App\Notifications\CompanyAcceptedNeedsAdminValidationNotification;
 use App\Notifications\CompanyRefusedApplicationNotification;
 use App\Services\ConventionService;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class ApplicationController extends Controller
 {
@@ -23,6 +25,20 @@ class ApplicationController extends Controller
    
     public function apply(Request $request, $offerId)
     {
+        $activeSelection = Application::query()
+            ->where('student_id', $request->user()->id)
+            ->where('status', 'selected')
+            ->whereDate('internship_ends_at', '>=', Carbon::today())
+            ->first();
+
+        if ($activeSelection) {
+            return response()->json([
+                'message' => 'You already selected an internship and cannot apply to other offers until it ends.',
+                'active_application_id' => $activeSelection->id,
+                'internship_ends_at' => optional($activeSelection->internship_ends_at)->toDateString(),
+            ], 403);
+        }
+
         $offer = InternshipOffer::find($offerId);
 
         // Check offer exists and is open
@@ -93,6 +109,71 @@ class ApplicationController extends Controller
 
         return response()->json([
             'message' => 'Application cancelled successfully.'
+        ]);
+    }
+
+    public function finalizeChoice(Request $request, $id)
+    {
+        $application = Application::query()
+            ->where('id', $id)
+            ->where('student_id', $request->user()->id)
+            ->whereIn('status', ['accepted', 'validated'])
+            ->with('offer')
+            ->first();
+
+        if (! $application) {
+            return response()->json([
+                'message' => 'Application not found or not eligible for final selection.',
+            ], 404);
+        }
+
+        $activeSelection = Application::query()
+            ->where('student_id', $request->user()->id)
+            ->where('status', 'selected')
+            ->whereDate('internship_ends_at', '>=', Carbon::today())
+            ->where('id', '!=', $application->id)
+            ->first();
+
+        if ($activeSelection) {
+            return response()->json([
+                'message' => 'You already selected another internship and must wait until it ends.',
+                'active_application_id' => $activeSelection->id,
+                'internship_ends_at' => optional($activeSelection->internship_ends_at)->toDateString(),
+            ], 403);
+        }
+
+        $startDate = $application->offer->internship_starts_at
+            ? Carbon::parse((string) $application->offer->internship_starts_at)->startOfDay()
+            : null;
+
+        if (! $startDate) {
+            return response()->json([
+                'message' => 'Company must set internship start date on the offer before final selection.',
+            ], 422);
+        }
+
+        $endDate = $application->offer->duration_unit === 'weeks'
+            ? $startDate->copy()->addWeeks((int) $application->offer->duration_value)
+            : $startDate->copy()->addMonths((int) $application->offer->duration_value);
+
+        DB::transaction(function () use ($application, $startDate, $endDate): void {
+            $application->update([
+                'status' => 'selected',
+                'selected_at' => now(),
+                'internship_starts_at' => $startDate->toDateString(),
+                'internship_ends_at' => $endDate->toDateString(),
+            ]);
+
+            Application::query()
+                ->where('student_id', $application->student_id)
+                ->where('id', '!=', $application->id)
+                ->whereIn('status', ['pending', 'accepted', 'validated'])
+                ->update(['status' => 'refused']);
+        });
+
+        return response()->json([
+            'message' => 'Final choice saved. Other applications were closed until your internship period ends.',
+            'application' => $application->fresh()->load('offer.company', 'student.studentProfile'),
         ]);
     }
 
@@ -303,9 +384,10 @@ class ApplicationController extends Controller
             'refused'            => Application::where('status', 'refused')->count(),
             'validated'          => Application::where('status', 'validated')->count(),
             'rejected'           => Application::where('status', 'rejected')->count(),
+            'selected'           => Application::where('status', 'selected')->count(),
             'total_offers'       => InternshipOffer::count(),
             'open_offers'        => InternshipOffer::where('status', 'open')->count(),
-            'students_placed'    => Application::where('status', 'validated')
+            'students_placed'    => Application::whereIn('status', ['validated', 'selected'])
                                         ->distinct('student_id')->count(),
         ]);
     }

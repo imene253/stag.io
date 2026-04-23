@@ -16,7 +16,13 @@ class RoleMiddleware
             ], 403);
         }
 
-        // Companies must be approved by admin before using company endpoints.
+        // Students and companies must be approved by admin before role endpoints.
+        if ($request->user()->role === 'student' && ! $request->user()->is_active) {
+            return response()->json([
+                'message' => 'Your student account is pending admin approval.'
+            ], 403);
+        }
+
         if ($request->user()->role === 'company' && ! $request->user()->is_active) {
             return response()->json([
                 'message' => 'Your company account is pending admin approval.'

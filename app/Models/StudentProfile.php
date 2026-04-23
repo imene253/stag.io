@@ -19,7 +19,8 @@ class StudentProfile extends Model
         'field_of_study',
         'academic_level',  
         'skills',           
-        'portfolio_link',   
+        'portfolio_link',
+        'previous_internship_experiences',
     ];
 
     protected $casts = [

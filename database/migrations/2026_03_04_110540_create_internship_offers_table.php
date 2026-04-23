@@ -32,7 +32,8 @@ return new class extends Migration
                 'open',
                 'closed',
             ])->default('open');
-            $table->date('deadline')->nullable();           
+            $table->date('deadline')->nullable();
+            $table->date('internship_starts_at')->nullable();
 
             $table->timestamps();
         });

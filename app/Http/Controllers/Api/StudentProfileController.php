@@ -38,7 +38,8 @@ class StudentProfileController extends Controller
           
             'skills'         => ['nullable', 'array'],
             'skills.*'       => ['string', 'max:50'],
-            'portfolio_link' => ['nullable', 'url', 'max:255'],    
+            'portfolio_link' => ['nullable', 'url', 'max:255'],
+            'previous_internship_experiences' => ['nullable', 'string', 'max:5000'],
         ]);
 
         $profile = $request->user()->studentProfile;
@@ -57,6 +58,7 @@ class StudentProfileController extends Controller
             'academic_level',
             'skills',
             'portfolio_link',
+            'previous_internship_experiences',
         ]));
 
         return response()->json([

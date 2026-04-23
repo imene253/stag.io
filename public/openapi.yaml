@@ -77,6 +77,8 @@ components:
             type: string
         portfolio_link:
           type: string
+        previous_internship_experiences:
+          type: string
         created_at:
           type: string
           format: date-time
@@ -142,6 +144,9 @@ components:
         deadline:
           type: string
           format: date
+        internship_starts_at:
+          type: string
+          format: date
         created_at:
           type: string
           format: date-time
@@ -159,12 +164,24 @@ components:
           type: integer
         status:
           type: string
-          enum: ["pending","accepted","refused","validated","rejected"]
+          enum: ["pending","accepted","refused","validated","rejected","selected"]
         cover_letter:
           type: string
           nullable: true
         admin_note:
           type: string
+          nullable: true
+        selected_at:
+          type: string
+          format: date-time
+          nullable: true
+        internship_starts_at:
+          type: string
+          format: date
+          nullable: true
+        internship_ends_at:
+          type: string
+          format: date
           nullable: true
         created_at:
           type: string
@@ -471,6 +488,7 @@ paths:
                   items:
                     type: string
                 portfolio_link: { type: string }
+                previous_internship_experiences: { type: string }
       responses:
         '200':
           description: Updated profile
@@ -663,7 +681,7 @@ paths:
           application/json:
             schema:
               type: object
-              required: [title,description,domain,location,type,duration_unit,duration_value]
+              required: [title,description,domain,location,type,duration_unit,duration_value,internship_starts_at]
               properties:
                 title: { type: string, maxLength: 255 }
                 description: { type: string }
@@ -683,6 +701,9 @@ paths:
                   items:
                     type: string
                 deadline:
+                  type: string
+                  format: date
+                internship_starts_at:
                   type: string
                   format: date
       responses:
@@ -742,6 +763,9 @@ paths:
                 deadline:
                   type: string
                   format: date
+                internship_starts_at:
+                  type: string
+                  format: date
       responses:
         '200':
           description: Offer updated
@@ -794,6 +818,8 @@ paths:
           description: Offer not found or not open
         '409':
           description: Student has already applied to this offer
+        '403':
+          description: Student already selected an active internship
   /api/student/applications:
     get:
       tags: ["Student"]
@@ -841,6 +867,35 @@ paths:
           description: Only pending applications can be cancelled
         '404':
           description: Application not found
+  /api/student/applications/{id}/finalize-choice:
+    put:
+      tags: ["Student"]
+      summary: Finalize one accepted/validated internship choice (student only)
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Final choice saved and other applications closed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+                  application:
+                    $ref: '#/components/schemas/Application'
+        '403':
+          description: Another internship is already selected and active
+        '422':
+          description: Company has not set internship start date on offer
+        '404':
+          description: Application not found or not eligible
   /api/company/offers/{id}/applications:
     get:
       tags: ["Company"]
@@ -946,7 +1001,7 @@ paths:
           required: false
           schema:
             type: string
-            enum: ["pending","accepted","refused","validated","rejected"]
+            enum: ["pending","accepted","refused","validated","rejected","selected"]
           description: Optional filter by application status
       responses:
         '200':

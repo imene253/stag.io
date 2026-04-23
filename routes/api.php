@@ -38,6 +38,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/offers/{id}/apply',   [ApplicationController::class, 'apply']);
         Route::get('/applications',         [ApplicationController::class, 'myApplications']);
         Route::delete('/applications/{id}', [ApplicationController::class, 'cancel']);
+        Route::put('/applications/{id}/finalize-choice', [ApplicationController::class, 'finalizeChoice']);
         Route::get('/convention',           [ConventionController::class,  'myConvention']);
     });
 
@@ -61,6 +62,9 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/companies/pending',            [AuthController::class, 'pendingCompanies']);
         Route::put('/companies/{id}/approve',       [AuthController::class, 'approveCompany']);
         Route::put('/companies/{id}/reject',        [AuthController::class, 'rejectCompany']);
+        Route::get('/students/pending',             [AuthController::class, 'pendingStudents']);
+        Route::put('/students/{id}/approve',        [AuthController::class, 'approveStudent']);
+        Route::put('/students/{id}/reject',         [AuthController::class, 'rejectStudent']);
 
         // Applications
         Route::get('/applications',               [ApplicationController::class, 'adminIndex']);

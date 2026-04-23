@@ -22,12 +22,14 @@ class InternshipOffer extends Model
         'required_skills',
         'status',
         'deadline',
+        'internship_starts_at',
     ];
 
     
     protected $casts = [
         'required_skills' => 'array',
         'deadline'        => 'date',
+        'internship_starts_at' => 'date',
     ];
 
 

@@ -7,6 +7,9 @@ use App\Models\User;
 use App\Notifications\CompanyApprovedNotification;
 use App\Notifications\CompanyRegistrationPendingApprovalNotification;
 use App\Notifications\CompanyRejectedNotification;
+use App\Notifications\StudentApprovedNotification;
+use App\Notifications\StudentRegistrationPendingApprovalNotification;
+use App\Notifications\StudentRejectedNotification;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
@@ -57,7 +60,7 @@ class AuthController extends Controller
             'email'    => $request->email,
             'password' => $request->password,
             'role'     => $request->role,
-            'is_active'=> $request->role === 'student',
+            'is_active'=> false,
         ]);
 
        
@@ -67,6 +70,13 @@ class AuthController extends Controller
                 'full_name'=> $request->name,
                 'email'    => $request->email,
             ]);
+
+            // Notify admins a new student requires approval.
+            User::where('role', 'admin')->get()->each(function (User $admin) use ($user): void {
+                $admin->notify(
+                    new StudentRegistrationPendingApprovalNotification($user)
+                );
+            });
         } else {
             $user->companyProfile()->create([
                 'user_id'      => $user->id,
@@ -88,7 +98,7 @@ class AuthController extends Controller
         return response()->json([
             'message' => $user->isCompany()
                 ? 'Registration successful. Your company account is pending admin approval.'
-                : 'Registration successful',
+                : 'Registration successful. Your student account is pending admin approval.',
             'token'   => $token,
             'role'    => $user->role,
             'user'    => $user->load($relation),
@@ -127,8 +137,14 @@ class AuthController extends Controller
         }
 
         if (! $user->is_active) {
+            $message = match ($user->role) {
+                'student' => 'Your student account is pending admin approval.',
+                'company' => 'Your company account is pending admin approval.',
+                default => 'Your account is disabled. Contact administration.',
+            };
+
             return response()->json([
-                'message' => 'Your account is disabled. Contact administration.'
+                'message' => $message,
             ], 403);
         }
 
@@ -261,6 +277,18 @@ class AuthController extends Controller
         return response()->json($companies);
     }
 
+    public function pendingStudents()
+    {
+        $students = User::query()
+            ->where('role', 'student')
+            ->where('is_active', false)
+            ->with('studentProfile')
+            ->latest()
+            ->paginate(15);
+
+        return response()->json($students);
+    }
+
     public function approveCompany(string $id)
     {
         $company = User::query()
@@ -302,6 +330,50 @@ class AuthController extends Controller
         return response()->json([
             'message' => 'Company set to pending/inactive.',
             'user' => $company->fresh()->load('companyProfile'),
+        ]);
+    }
+
+    public function approveStudent(string $id)
+    {
+        $student = User::query()
+            ->where('id', $id)
+            ->where('role', 'student')
+            ->first();
+
+        if (! $student) {
+            return response()->json([
+                'message' => 'Student not found.',
+            ], 404);
+        }
+
+        $student->update(['is_active' => true]);
+        $student->notify(new StudentApprovedNotification($student));
+
+        return response()->json([
+            'message' => 'Student approved successfully.',
+            'user' => $student->fresh()->load('studentProfile'),
+        ]);
+    }
+
+    public function rejectStudent(string $id)
+    {
+        $student = User::query()
+            ->where('id', $id)
+            ->where('role', 'student')
+            ->first();
+
+        if (! $student) {
+            return response()->json([
+                'message' => 'Student not found.',
+            ], 404);
+        }
+
+        $student->update(['is_active' => false]);
+        $student->notify(new StudentRejectedNotification($student));
+
+        return response()->json([
+            'message' => 'Student set to pending/inactive.',
+            'user' => $student->fresh()->load('studentProfile'),
         ]);
     }
 

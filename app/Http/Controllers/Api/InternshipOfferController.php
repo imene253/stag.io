@@ -67,6 +67,7 @@ class InternshipOfferController extends Controller
             'required_skills' => ['nullable', 'array'],
             'required_skills.*'=> ['string', 'max:50'],
             'deadline'        => ['nullable', 'date', 'after:today'],
+            'internship_starts_at' => ['required', 'date', 'after_or_equal:today'],
         ]);
 
         $offer = InternshipOffer::create([
@@ -80,6 +81,7 @@ class InternshipOfferController extends Controller
             'duration_value'  => $request->duration_value,
             'required_skills' => $request->required_skills ?? [],
             'deadline'        => $request->deadline,
+            'internship_starts_at' => $request->internship_starts_at,
             'status'          => 'open',
         ]);
 
@@ -114,6 +116,7 @@ class InternshipOfferController extends Controller
             'required_skills.*'=> ['string', 'max:50'],
             'status'          => ['sometimes', 'in:open,closed'],
             'deadline'        => ['nullable', 'date'],
+            'internship_starts_at' => ['sometimes', 'date'],
         ]);
 
         $offer->update($request->only([
@@ -127,6 +130,7 @@ class InternshipOfferController extends Controller
             'required_skills',
             'status',
             'deadline',
+            'internship_starts_at',
         ]));
 
         return response()->json([

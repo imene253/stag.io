@@ -15,6 +15,15 @@ class Application extends Model
         'status',
         'cover_letter',
         'admin_note',
+        'selected_at',
+        'internship_starts_at',
+        'internship_ends_at',
+    ];
+
+    protected $casts = [
+        'selected_at' => 'datetime',
+        'internship_starts_at' => 'date',
+        'internship_ends_at' => 'date',
     ];
 
     // ─── Relationships ─────────────────────────────────────
@@ -42,4 +51,5 @@ class Application extends Model
     public function isRefused(): bool    { return $this->status === 'refused'; }
     public function isValidated(): bool  { return $this->status === 'validated'; }
     public function isRejected(): bool   { return $this->status === 'rejected'; }
+    public function isSelected(): bool   { return $this->status === 'selected'; }
 }
