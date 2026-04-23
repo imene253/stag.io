@@ -49,54 +49,24 @@ RUN php artisan config:clear && \
     php artisan route:clear && \
     php artisan view:clear
 
-# Create startup script that runs migrations and seeders before starting server
+# Create startup script that respects Render environment variables.
 RUN echo '#!/bin/sh\n\
 set -e\n\
-echo "=== FORCING SQLite configuration ==="\n\
-export DB_CONNECTION=sqlite\n\
-unset DB_HOST\n\
-unset DB_PORT\n\
-unset DB_DATABASE\n\
-unset DB_USERNAME\n\
-unset DB_PASSWORD\n\
-echo "DB_CONNECTION is now: sqlite"\n\
-echo "=== Updating .env file to use SQLite ==="\n\
-if [ -f /var/www/.env ]; then\n\
-    grep -v "^DB_" /var/www/.env | grep -v "^SESSION_DRIVER=" > /var/www/.env.tmp 2>/dev/null || cat /var/www/.env > /var/www/.env.tmp\n\
-    echo "DB_CONNECTION=sqlite" >> /var/www/.env.tmp\n\
-    echo "SESSION_DRIVER=file" >> /var/www/.env.tmp\n\
-    mv /var/www/.env.tmp /var/www/.env\n\
-else\n\
-    echo "DB_CONNECTION=sqlite" > /var/www/.env\n\
-    echo "SESSION_DRIVER=file" >> /var/www/.env\n\
+echo "=== Starting app with DB_CONNECTION=${DB_CONNECTION:-sqlite} ==="\n\
+mkdir -p /var/www/storage/framework/sessions /var/www/storage/framework/cache /var/www/storage/framework/views /var/www/bootstrap/cache\n\
+chmod -R 775 /var/www/storage /var/www/bootstrap/cache || true\n\
+if [ "${DB_CONNECTION}" = "sqlite" ] || [ -z "${DB_CONNECTION}" ]; then\n\
+  mkdir -p /var/www/database\n\
+  touch /var/www/database/database.sqlite\n\
+  chmod 664 /var/www/database/database.sqlite || true\n\
 fi\n\
-echo "=== Ensuring SQLite database file exists ==="\n\
-mkdir -p /var/www/database\n\
-touch /var/www/database/database.sqlite\n\
-chmod 664 /var/www/database/database.sqlite\n\
-chown www-data:www-data /var/www/database/database.sqlite\n\
-echo "=== Ensuring directories exist ==="\n\
-mkdir -p /var/www/storage/framework/sessions /var/www/storage/framework/cache /var/www/storage/framework/views\n\
-chmod -R 775 /var/www/database /var/www/storage /var/www/bootstrap/cache\n\
-chown -R www-data:www-data /var/www/database /var/www/storage /var/www/bootstrap/cache\n\
-echo "=== Removing ALL cached files aggressively ==="\n\
-rm -rf /var/www/bootstrap/cache/*\n\
-rm -rf /var/www/storage/framework/cache/*\n\
-rm -rf /var/www/storage/framework/views/*\n\
-echo "=== Clearing all caches with SQLite ==="\n\
-DB_CONNECTION=sqlite php artisan config:clear 2>&1 || echo "config:clear failed (continuing)"\n\
-DB_CONNECTION=sqlite php artisan cache:clear 2>&1 || echo "cache:clear failed (continuing)"\n\
-DB_CONNECTION=sqlite php artisan route:clear 2>&1 || echo "route:clear failed (continuing)"\n\
-DB_CONNECTION=sqlite php artisan view:clear 2>&1 || echo "view:clear failed (continuing)"\n\
-DB_CONNECTION=sqlite php artisan optimize:clear 2>&1 || echo "optimize:clear failed (continuing)"\n\
-echo "=== Running database migrations with SQLite ==="\n\
-DB_CONNECTION=sqlite php artisan migrate --force\n\
-if [ $? -ne 0 ]; then\n\
-    echo "ERROR: Migrations failed!"\n\
-    exit 1\n\
-fi\n\
+php artisan config:clear || true\n\
+php artisan route:clear || true\n\
+php artisan view:clear || true\n\
+echo "=== Running migrations ==="\n\
+php artisan migrate --force\n\
 echo "=== Seeding admin user ==="\n\
-DB_CONNECTION=sqlite php artisan db:seed --class=AdminSeeder --force || echo "Note: AdminSeeder may have already run (admin exists)"\n\
+php artisan db:seed --class=AdminSeeder --force || true\n\
 echo "=== Starting Laravel server ==="\n\
 exec php artisan serve --host=0.0.0.0 --port=${PORT:-8080}' > /var/www/start.sh && \
     chmod +x /var/www/start.sh
