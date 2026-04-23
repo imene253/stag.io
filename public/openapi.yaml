@@ -360,6 +360,58 @@ paths:
           description: Company set inactive
         '404':
           description: Company not found
+  /api/admin/students/pending:
+    get:
+      tags: ["Admin"]
+      summary: List students pending admin approval
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Paginated list of pending students
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/User'
+  /api/admin/students/{id}/approve:
+    put:
+      tags: ["Admin"]
+      summary: Approve a student account
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Student approved
+        '404':
+          description: Student not found
+  /api/admin/students/{id}/reject:
+    put:
+      tags: ["Admin"]
+      summary: Reject or set a student account to inactive
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Student set inactive
+        '404':
+          description: Student not found
   /api/login:
     post:
       tags: ["Auth"]
