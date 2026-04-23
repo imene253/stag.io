@@ -22,7 +22,22 @@ return new class extends Migration
                 "ALTER TABLE applications MODIFY COLUMN status ENUM('pending','accepted','refused','validated','rejected','selected') NOT NULL DEFAULT 'pending'"
             );
         } elseif ($driver === 'pgsql') {
-            DB::statement("ALTER TABLE applications DROP CONSTRAINT IF EXISTS applications_status_check");
+            DB::statement(<<<'SQL'
+DO $$
+DECLARE c record;
+BEGIN
+    FOR c IN
+        SELECT pc.conname
+        FROM pg_constraint pc
+        JOIN pg_class t ON t.oid = pc.conrelid
+        WHERE t.relname = 'applications'
+          AND pc.contype = 'c'
+          AND pg_get_constraintdef(pc.oid) ILIKE '%status%'
+    LOOP
+        EXECUTE format('ALTER TABLE applications DROP CONSTRAINT IF EXISTS %I', c.conname);
+    END LOOP;
+END $$;
+SQL);
             DB::statement(
                 "ALTER TABLE applications ADD CONSTRAINT applications_status_check CHECK (status IN ('pending','accepted','refused','validated','rejected','selected'))"
             );
@@ -38,7 +53,22 @@ return new class extends Migration
                 "ALTER TABLE applications MODIFY COLUMN status ENUM('pending','accepted','refused','validated','rejected') NOT NULL DEFAULT 'pending'"
             );
         } elseif ($driver === 'pgsql') {
-            DB::statement("ALTER TABLE applications DROP CONSTRAINT IF EXISTS applications_status_check");
+            DB::statement(<<<'SQL'
+DO $$
+DECLARE c record;
+BEGIN
+    FOR c IN
+        SELECT pc.conname
+        FROM pg_constraint pc
+        JOIN pg_class t ON t.oid = pc.conrelid
+        WHERE t.relname = 'applications'
+          AND pc.contype = 'c'
+          AND pg_get_constraintdef(pc.oid) ILIKE '%status%'
+    LOOP
+        EXECUTE format('ALTER TABLE applications DROP CONSTRAINT IF EXISTS %I', c.conname);
+    END LOOP;
+END $$;
+SQL);
             DB::statement(
                 "ALTER TABLE applications ADD CONSTRAINT applications_status_check CHECK (status IN ('pending','accepted','refused','validated','rejected'))"
             );
