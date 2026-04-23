@@ -8,9 +8,12 @@ use App\Models\InternshipOffer;
 use App\Models\User;
 use App\Notifications\AdminRejectedApplicationNotification;
 use App\Notifications\AdminValidatedApplicationNotification;
+use App\Notifications\CompanyApplicationClosedByStudentChoiceNotification;
 use App\Notifications\CompanyAcceptedApplicationNotification;
 use App\Notifications\CompanyAcceptedNeedsAdminValidationNotification;
 use App\Notifications\CompanyRefusedApplicationNotification;
+use App\Notifications\StudentFinalChoiceConfirmedNotification;
+use App\Notifications\StudentFinalChoiceNeedsAdminValidationNotification;
 use App\Services\ConventionService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -156,7 +159,14 @@ class ApplicationController extends Controller
             ? $startDate->copy()->addWeeks((int) $application->offer->duration_value)
             : $startDate->copy()->addMonths((int) $application->offer->duration_value);
 
-        DB::transaction(function () use ($application, $startDate, $endDate): void {
+        $closedApplications = Application::query()
+            ->where('student_id', $application->student_id)
+            ->where('id', '!=', $application->id)
+            ->whereIn('status', ['pending', 'accepted', 'validated'])
+            ->with('offer.company')
+            ->get();
+
+        DB::transaction(function () use ($application, $startDate, $endDate, $closedApplications): void {
             $application->update([
                 'status' => 'selected',
                 'selected_at' => now(),
@@ -164,16 +174,42 @@ class ApplicationController extends Controller
                 'internship_ends_at' => $endDate->toDateString(),
             ]);
 
-            Application::query()
-                ->where('student_id', $application->student_id)
-                ->where('id', '!=', $application->id)
-                ->whereIn('status', ['pending', 'accepted', 'validated'])
-                ->update(['status' => 'refused']);
+            if ($closedApplications->isNotEmpty()) {
+                Application::query()
+                    ->whereIn('id', $closedApplications->pluck('id')->all())
+                    ->update(['status' => 'refused']);
+            }
         });
+
+        $selectedApplication = $application->fresh()->load('offer.company', 'student.studentProfile');
+        $closedCount = $closedApplications->count();
+
+        // Inform student that final selection was saved.
+        $selectedApplication->student->notify(
+            new StudentFinalChoiceConfirmedNotification($selectedApplication, $closedCount)
+        );
+
+        // Inform admins that a final student choice is ready for validation.
+        User::where('role', 'admin')->get()->each(function (User $admin) use ($selectedApplication, $closedCount): void {
+            $admin->notify(
+                new StudentFinalChoiceNeedsAdminValidationNotification($selectedApplication, $closedCount)
+            );
+        });
+
+        // Inform impacted companies that their application was closed by student final choice.
+        foreach ($closedApplications as $closedApplication) {
+            $company = $closedApplication->offer?->company;
+
+            if ($company) {
+                $company->notify(
+                    new CompanyApplicationClosedByStudentChoiceNotification($closedApplication, $selectedApplication)
+                );
+            }
+        }
 
         return response()->json([
             'message' => 'Final choice saved. Other applications were closed until your internship period ends.',
-            'application' => $application->fresh()->load('offer.company', 'student.studentProfile'),
+            'application' => $selectedApplication,
         ]);
     }
 
