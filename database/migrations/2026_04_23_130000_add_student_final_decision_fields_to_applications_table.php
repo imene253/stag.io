@@ -9,11 +9,27 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::table('applications', function (Blueprint $table): void {
-            $table->timestamp('selected_at')->nullable()->after('admin_note');
-            $table->date('internship_starts_at')->nullable()->after('selected_at');
-            $table->date('internship_ends_at')->nullable()->after('internship_starts_at');
-        });
+        $columnsToAdd = array_values(array_filter([
+            ! Schema::hasColumn('applications', 'selected_at') ? 'selected_at' : null,
+            ! Schema::hasColumn('applications', 'internship_starts_at') ? 'internship_starts_at' : null,
+            ! Schema::hasColumn('applications', 'internship_ends_at') ? 'internship_ends_at' : null,
+        ]));
+
+        if (! empty($columnsToAdd)) {
+            Schema::table('applications', function (Blueprint $table) use ($columnsToAdd): void {
+                if (in_array('selected_at', $columnsToAdd, true)) {
+                    $table->timestamp('selected_at')->nullable()->after('admin_note');
+                }
+
+                if (in_array('internship_starts_at', $columnsToAdd, true)) {
+                    $table->date('internship_starts_at')->nullable()->after('selected_at');
+                }
+
+                if (in_array('internship_ends_at', $columnsToAdd, true)) {
+                    $table->date('internship_ends_at')->nullable()->after('internship_starts_at');
+                }
+            });
+        }
 
         $driver = Schema::getConnection()->getDriverName();
 
@@ -82,12 +98,16 @@ SQL);
             );
         }
 
-        Schema::table('applications', function (Blueprint $table): void {
-            $table->dropColumn([
-                'selected_at',
-                'internship_starts_at',
-                'internship_ends_at',
-            ]);
-        });
+        $columnsToDrop = array_values(array_filter([
+            Schema::hasColumn('applications', 'selected_at') ? 'selected_at' : null,
+            Schema::hasColumn('applications', 'internship_starts_at') ? 'internship_starts_at' : null,
+            Schema::hasColumn('applications', 'internship_ends_at') ? 'internship_ends_at' : null,
+        ]));
+
+        if (! empty($columnsToDrop)) {
+            Schema::table('applications', function (Blueprint $table) use ($columnsToDrop): void {
+                $table->dropColumn($columnsToDrop);
+            });
+        }
     }
 };
