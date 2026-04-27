@@ -25,61 +25,62 @@ class ApplicationController extends Controller
         protected ConventionService $conventionService
     ) {
     }
-   
+
     public function apply(Request $request, $offerId)
-    {
-        $activeSelection = Application::query()
-            ->where('student_id', $request->user()->id)
-            ->where('status', 'selected')
-            ->whereDate('internship_ends_at', '>=', Carbon::today())
-            ->first();
+{
+    $activeSelection = Application::query()
+        ->where('student_id', $request->user()->id)
+        ->whereIn('status', ['selected', 'validated'])
+        ->whereDate('internship_ends_at', '>=', Carbon::today())
+        ->first();
 
-        if ($activeSelection) {
-            return response()->json([
-                'message' => 'You already selected an internship and cannot apply to other offers until it ends.',
-                'active_application_id' => $activeSelection->id,
-                'internship_ends_at' => optional($activeSelection->internship_ends_at)->toDateString(),
-            ], 403);
-        }
-
-        $offer = InternshipOffer::find($offerId);
-
-        // Check offer exists and is open
-        if (! $offer || $offer->status !== 'open') {
-            return response()->json([
-                'message' => 'Offer not found or is no longer open.'
-            ], 404);
-        }
-
-        // Check student hasn't already applied
-        $alreadyApplied = Application::where('student_id', $request->user()->id)
-            ->where('offer_id', $offerId)
-            ->exists();
-
-        if ($alreadyApplied) {
-            return response()->json([
-                'message' => 'You have already applied to this offer.'
-            ], 409);
-        }
-
-        $request->validate([
-            'cover_letter' => ['nullable', 'string', 'max:2000'],
-        ]);
-
-        $application = Application::create([
-            'student_id'   => $request->user()->id,
-            'offer_id'     => $offerId,
-            'status'       => 'pending',
-            'cover_letter' => $request->cover_letter,
-        ]);
-
+    if ($activeSelection) {
         return response()->json([
-            'message'     => 'Application submitted successfully.',
-            'application' => $application->load('offer'),
-        ], 201);
+            'message' => 'You already selected an internship and cannot apply to other offers until it ends.',
+            'active_application_id' => $activeSelection->id,
+            'internship_ends_at' => optional($activeSelection->internship_ends_at)->toDateString(),
+        ], 403);
     }
 
-   
+    $offer = InternshipOffer::find($offerId);
+
+    if (
+        ! $offer ||
+        $offer->status !== 'open' ||
+        ($offer->deadline && $offer->deadline->isPast())
+    ) {
+        return response()->json([
+            'message' => 'Offer not found, closed, or application deadline has passed.'
+        ], 404);
+    }
+
+    $alreadyApplied = Application::where('student_id', $request->user()->id)
+        ->where('offer_id', $offerId)
+        ->exists();
+
+    if ($alreadyApplied) {
+        return response()->json([
+            'message' => 'You have already applied to this offer.'
+        ], 409);
+    }
+
+    $request->validate([
+        'cover_letter' => ['nullable', 'string', 'max:2000'],
+    ]);
+
+    $application = Application::create([
+        'student_id'   => $request->user()->id,
+        'offer_id'     => $offerId,
+        'status'       => 'pending',
+        'cover_letter' => $request->cover_letter,
+    ]);
+
+    return response()->json([
+        'message'     => 'Application submitted successfully.',
+        'application' => $application->load('offer'),
+    ], 201);
+}
+
     public function myApplications(Request $request)
     {
         $applications = Application::where('student_id', $request->user()->id)
@@ -132,7 +133,7 @@ class ApplicationController extends Controller
 
         $activeSelection = Application::query()
             ->where('student_id', $request->user()->id)
-            ->where('status', 'selected')
+            ->whereIn('status', ['selected', 'validated'])
             ->whereDate('internship_ends_at', '>=', Carbon::today())
             ->where('id', '!=', $application->id)
             ->first();
@@ -159,10 +160,16 @@ class ApplicationController extends Controller
             ? $startDate->copy()->addWeeks((int) $application->offer->duration_value)
             : $startDate->copy()->addMonths((int) $application->offer->duration_value);
 
+        /*
+         * Only accepted applications are rejected here.
+         * Meaning:
+         * - refused  = company refused the student
+         * - rejected = student did not choose it after being accepted, or admin rejected it
+         */
         $closedApplications = Application::query()
             ->where('student_id', $application->student_id)
             ->where('id', '!=', $application->id)
-            ->whereIn('status', ['pending', 'accepted', 'validated'])
+            ->where('status', 'accepted')
             ->with('offer.company')
             ->get();
 
@@ -177,26 +184,23 @@ class ApplicationController extends Controller
             if ($closedApplications->isNotEmpty()) {
                 Application::query()
                     ->whereIn('id', $closedApplications->pluck('id')->all())
-                    ->update(['status' => 'refused']);
+                    ->update(['status' => 'rejected']);
             }
         });
 
         $selectedApplication = $application->fresh()->load('offer.company', 'student.studentProfile');
         $closedCount = $closedApplications->count();
 
-        // Inform student that final selection was saved.
         $selectedApplication->student->notify(
             new StudentFinalChoiceConfirmedNotification($selectedApplication, $closedCount)
         );
 
-        // Inform admins that a final student choice is ready for validation.
         User::where('role', 'admin')->get()->each(function (User $admin) use ($selectedApplication, $closedCount): void {
             $admin->notify(
                 new StudentFinalChoiceNeedsAdminValidationNotification($selectedApplication, $closedCount)
             );
         });
 
-        // Inform impacted companies that their application was closed by student final choice.
         foreach ($closedApplications as $closedApplication) {
             $company = $closedApplication->offer?->company;
 
@@ -208,14 +212,13 @@ class ApplicationController extends Controller
         }
 
         return response()->json([
-            'message' => 'Final choice saved. Other applications were closed until your internship period ends.',
+            'message' => 'Final choice saved. Other accepted applications were rejected.',
             'application' => $selectedApplication,
         ]);
     }
 
     public function offerApplicants(Request $request, $offerId)
     {
-        // Make sure the offer belongs to this company
         $offer = InternshipOffer::where('id', $offerId)
             ->where('user_id', $request->user()->id)
             ->first();
@@ -234,7 +237,6 @@ class ApplicationController extends Controller
         return response()->json($applications);
     }
 
- 
     public function accept(Request $request, $id)
     {
         $application = Application::whereHas('offer', function ($q) use ($request) {
@@ -257,12 +259,10 @@ class ApplicationController extends Controller
 
         $application->update(['status' => 'accepted']);
 
-        // Notify student who owns this application.
         $application->student->notify(
             new CompanyAcceptedApplicationNotification($application->fresh()->load('offer.company'))
         );
 
-        // Notify all admins that this accepted application needs validation.
         User::where('role', 'admin')->get()->each(function (User $admin) use ($application): void {
             $admin->notify(
                 new CompanyAcceptedNeedsAdminValidationNotification($application->fresh()->load('student', 'offer.company'))
@@ -275,7 +275,6 @@ class ApplicationController extends Controller
         ]);
     }
 
-   
     public function refuse(Request $request, $id)
     {
         $application = Application::whereHas('offer', function ($q) use ($request) {
@@ -346,7 +345,6 @@ class ApplicationController extends Controller
         $application->student->notify(new AdminValidatedApplicationNotification($application));
         $application->offer->company->notify(new AdminValidatedApplicationNotification($application));
 
-        // Auto-generate the Convention PDF immediately after validation
         if (! $application->convention) {
             $this->conventionService->generate($application);
         }
@@ -361,7 +359,6 @@ class ApplicationController extends Controller
         ]);
     }
 
-   
     public function reject(Request $request, $id)
     {
         $application = Application::where('id', $id)
@@ -393,7 +390,6 @@ class ApplicationController extends Controller
         ]);
     }
 
-  
     public function adminIndex(Request $request)
     {
         $query = Application::with([
@@ -401,7 +397,6 @@ class ApplicationController extends Controller
             'offer.company.companyProfile',
         ]);
 
-        // Filter by status
         if ($request->filled('status')) {
             $query->where('status', $request->status);
         }
@@ -411,7 +406,7 @@ class ApplicationController extends Controller
         return response()->json($applications);
     }
 
-      public function stats()
+    public function stats()
     {
         return response()->json([
             'total_applications' => Application::count(),
@@ -424,7 +419,8 @@ class ApplicationController extends Controller
             'total_offers'       => InternshipOffer::count(),
             'open_offers'        => InternshipOffer::where('status', 'open')->count(),
             'students_placed'    => Application::whereIn('status', ['validated', 'selected'])
-                                        ->distinct('student_id')->count(),
+                ->distinct('student_id')
+                ->count(),
         ]);
     }
 }

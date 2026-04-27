@@ -9,7 +9,6 @@ class InternshipOffer extends Model
 {
     use HasFactory;
 
- 
     protected $fillable = [
         'user_id',
         'title',
@@ -25,54 +24,48 @@ class InternshipOffer extends Model
         'internship_starts_at',
     ];
 
-    
     protected $casts = [
         'required_skills' => 'array',
-        'deadline'        => 'date',
+        'deadline' => 'date',
         'internship_starts_at' => 'date',
     ];
 
-
-    // The company that created the internship offer
     public function company()
     {
         return $this->belongsTo(User::class, 'user_id')
                     ->with('companyProfile');
     }
 
-    // Applications submitted for this offer
     public function applications()
     {
         return $this->hasMany(Application::class, 'offer_id');
     }
 
-    
-
-    // Only open offers
+    // Only open and not expired offers
     public function scopeOpen($query)
     {
-        return $query->where('status', 'open');
+        return $query->where('status', 'open')
+            ->where(function ($q) {
+                $q->whereNull('deadline')
+                  ->orWhereDate('deadline', '>=', today());
+            });
     }
 
-    // Filter by location (Wilaya)
     public function scopeByWilaya($query, $wilaya)
     {
         return $query->where('location', $wilaya);
     }
 
-    // Filter by domain
     public function scopeByDomain($query, $domain)
     {
         return $query->where('domain', 'like', "%{$domain}%");
     }
 
-    // Filter by type (remote, onsite, hybrid)
     public function scopeByType($query, $type)
     {
         return $query->where('type', $type);
     }
 
-    // Filter by required skill 
     public function scopeBySkill($query, $skill)
     {
         return $query->whereJsonContains('required_skills', $skill);
