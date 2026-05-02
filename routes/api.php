@@ -7,7 +7,9 @@ use App\Http\Controllers\Api\ConventionController;
 use App\Http\Controllers\Api\InternshipOfferController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\StudentProfileController;
+use App\Http\Controllers\Api\MatchingController;
 use Illuminate\Support\Facades\Route;
+
 
 // ─── Public ───────────────────────────────────────────────
 Route::post('/register', [AuthController::class, 'register']);
@@ -40,6 +42,9 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('/applications/{id}', [ApplicationController::class, 'cancel']);
         Route::put('/applications/{id}/finalize-choice', [ApplicationController::class, 'finalizeChoice']);
         Route::get('/convention',           [ConventionController::class,  'myConvention']);
+
+        // Gemini matching endpoint
+        Route::post('/offers/{offerId}/ai-match', [MatchingController::class, 'matchReal']);
     });
 
     // ── Company ───────────────────────────────────────────
@@ -76,6 +81,9 @@ Route::middleware('auth:sanctum')->group(function () {
         // Conventions
         Route::get('/conventions',                        [ConventionController::class, 'index']);
         Route::post('/applications/{id}/generate',        [ConventionController::class, 'generate']);       // manual generate/regenerate
+
+
+        
     });
 
 });
