@@ -27,59 +27,68 @@ class ApplicationController extends Controller
     }
 
     public function apply(Request $request, $offerId)
-{
-    $activeSelection = Application::query()
-        ->where('student_id', $request->user()->id)
-        ->whereIn('status', ['selected', 'validated'])
-        ->whereDate('internship_ends_at', '>=', Carbon::today())
-        ->first();
+    {
+        InternshipOffer::closeExpired();
 
-    if ($activeSelection) {
+        $offer = InternshipOffer::find($offerId);
+
+        if (! $offer || $offer->status !== 'open') {
+            return response()->json([
+                'message' => 'Offer not found or is no longer open.',
+            ], 404);
+        }
+
+        if ($offer->isPastDeadline()) {
+            return response()->json([
+                'message' => 'The application deadline for this offer has passed.',
+            ], 403);
+        }
+
+        $activePlacement = Application::activePlacementForStudent($request->user()->id);
+
+        if ($activePlacement) {
+            if (! $offer->internship_starts_at) {
+                return response()->json([
+                    'message' => 'This offer has no internship start date. You cannot apply while you have an active internship.',
+                ], 422);
+            }
+
+            if (! $activePlacement->allowsApplicationToOffer($offer)) {
+                return response()->json([
+                    'message' => 'You can only apply to offers that start after your current internship ends.',
+                    'active_application_id' => $activePlacement->id,
+                    'internship_ends_at' => $activePlacement->internship_ends_at->toDateString(),
+                    'offer_starts_at' => Carbon::parse($offer->internship_starts_at)->toDateString(),
+                ], 403);
+            }
+        }
+
+        $alreadyApplied = Application::where('student_id', $request->user()->id)
+            ->where('offer_id', $offerId)
+            ->exists();
+
+        if ($alreadyApplied) {
+            return response()->json([
+                'message' => 'You have already applied to this offer.',
+            ], 409);
+        }
+
+        $request->validate([
+            'cover_letter' => ['nullable', 'string', 'max:2000'],
+        ]);
+
+        $application = Application::create([
+            'student_id'   => $request->user()->id,
+            'offer_id'     => $offerId,
+            'status'       => 'pending',
+            'cover_letter' => $request->cover_letter,
+        ]);
+
         return response()->json([
-            'message' => 'You already selected an internship and cannot apply to other offers until it ends.',
-            'active_application_id' => $activeSelection->id,
-            'internship_ends_at' => optional($activeSelection->internship_ends_at)->toDateString(),
-        ], 403);
+            'message'     => 'Application submitted successfully.',
+            'application' => $application->load('offer'),
+        ], 201);
     }
-
-    $offer = InternshipOffer::find($offerId);
-
-    if (
-        ! $offer ||
-        $offer->status !== 'open' ||
-        ($offer->deadline && $offer->deadline->isPast())
-    ) {
-        return response()->json([
-            'message' => 'Offer not found, closed, or application deadline has passed.'
-        ], 404);
-    }
-
-    $alreadyApplied = Application::where('student_id', $request->user()->id)
-        ->where('offer_id', $offerId)
-        ->exists();
-
-    if ($alreadyApplied) {
-        return response()->json([
-            'message' => 'You have already applied to this offer.'
-        ], 409);
-    }
-
-    $request->validate([
-        'cover_letter' => ['nullable', 'string', 'max:2000'],
-    ]);
-
-    $application = Application::create([
-        'student_id'   => $request->user()->id,
-        'offer_id'     => $offerId,
-        'status'       => 'pending',
-        'cover_letter' => $request->cover_letter,
-    ]);
-
-    return response()->json([
-        'message'     => 'Application submitted successfully.',
-        'application' => $application->load('offer'),
-    ], 201);
-}
 
     public function myApplications(Request $request)
     {
@@ -131,18 +140,21 @@ class ApplicationController extends Controller
             ], 404);
         }
 
-        $activeSelection = Application::query()
+        $activePlacement = Application::query()
             ->where('student_id', $request->user()->id)
             ->whereIn('status', ['selected', 'validated'])
             ->whereDate('internship_ends_at', '>=', Carbon::today())
             ->where('id', '!=', $application->id)
             ->first();
 
-        if ($activeSelection) {
+        if ($activePlacement && ! $activePlacement->allowsApplicationToOffer($application->offer)) {
             return response()->json([
-                'message' => 'You already selected another internship and must wait until it ends.',
-                'active_application_id' => $activeSelection->id,
-                'internship_ends_at' => optional($activeSelection->internship_ends_at)->toDateString(),
+                'message' => 'You can only select an internship that starts after your current one ends.',
+                'active_application_id' => $activePlacement->id,
+                'internship_ends_at' => $activePlacement->internship_ends_at->toDateString(),
+                'offer_starts_at' => optional($application->offer->internship_starts_at)
+                    ? Carbon::parse($application->offer->internship_starts_at)->toDateString()
+                    : null,
             ], 403);
         }
 

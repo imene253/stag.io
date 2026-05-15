@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 
@@ -43,6 +44,25 @@ class Application extends Model
     public function convention()
     {
         return $this->hasOne(Convention::class);
+    }
+
+    public static function activePlacementForStudent(int $studentId): ?self
+    {
+        return static::query()
+            ->where('student_id', $studentId)
+            ->whereIn('status', ['selected', 'validated'])
+            ->whereDate('internship_ends_at', '>=', Carbon::today())
+            ->first();
+    }
+
+    public function allowsApplicationToOffer(InternshipOffer $offer): bool
+    {
+        if (! $this->internship_ends_at || ! $offer->internship_starts_at) {
+            return false;
+        }
+
+        return Carbon::parse($offer->internship_starts_at)->startOfDay()
+            ->gt(Carbon::parse($this->internship_ends_at)->startOfDay());
     }
 
     // ─── Status Helpers ────────────────────────────────────

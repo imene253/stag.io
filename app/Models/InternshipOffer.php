@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 
@@ -49,6 +50,24 @@ class InternshipOffer extends Model
                 $q->whereNull('deadline')
                   ->orWhereDate('deadline', '>=', today());
             });
+    }
+
+    public function isPastDeadline(): bool
+    {
+        if (! $this->deadline) {
+            return false;
+        }
+
+        return Carbon::parse($this->deadline)->startOfDay()->lt(Carbon::today());
+    }
+
+    public static function closeExpired(): int
+    {
+        return static::query()
+            ->where('status', 'open')
+            ->whereNotNull('deadline')
+            ->whereDate('deadline', '<', Carbon::today())
+            ->update(['status' => 'closed']);
     }
 
     public function scopeByWilaya($query, $wilaya)

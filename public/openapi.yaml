@@ -1,8 +1,15 @@
 openapi: 3.0.3
 info:
   title: stag.io API
-  version: 1.0.0
-  description: API documentation for the stag.io backend (authentication, student & company profiles)
+  version: 1.1.0
+  description: |
+    API documentation for the stag.io backend (authentication, student & company profiles).
+
+    **Internship offer deadlines:** Offers with a `deadline` before today are automatically set to `closed`
+    when listed, viewed, or when a student applies. A daily job (`offers:close-expired`) also closes them.
+
+    **Concurrent placements:** A student with an active placement (`selected` or `validated`, internship not ended)
+    may only apply to offers whose `internship_starts_at` is strictly after their current `internship_ends_at`.
 tags:
   - name: Auth
     description: Authentication and user bootstrap
@@ -141,12 +148,18 @@ components:
         status:
           type: string
           enum: ["open","closed"]
+          description: >
+            `open` offers accept applications. Automatically set to `closed` the day after `deadline`
+            (deadline day is still open). Companies may also close offers manually.
         deadline:
           type: string
           format: date
+          nullable: true
+          description: Last day students can apply. After this date the offer is auto-closed.
         internship_starts_at:
           type: string
           format: date
+          description: Required for new offers. Used to check overlap with a student's current placement.
         created_at:
           type: string
           format: date-time
@@ -189,6 +202,25 @@ components:
         updated_at:
           type: string
           format: date-time
+    PlacementConflictError:
+      type: object
+      properties:
+        message:
+          type: string
+        active_application_id:
+          type: integer
+        internship_ends_at:
+          type: string
+          format: date
+        offer_starts_at:
+          type: string
+          format: date
+          nullable: true
+    MessageError:
+      type: object
+      properties:
+        message:
+          type: string
     AuthResponse:
       type: object
       properties:
@@ -638,6 +670,8 @@ paths:
     get:
       tags: ["Public"]
       summary: List public internship offers with optional filters
+      description: >
+        Returns only `open` offers. Expired offers (deadline before today) are auto-closed before the list is built.
       parameters:
         - in: query
           name: wilaya
@@ -680,6 +714,7 @@ paths:
     get:
       tags: ["Public"]
       summary: Get a single internship offer (public)
+      description: Expired offers (deadline before today) are auto-closed before the response is returned.
       parameters:
         - in: path
           name: id
@@ -837,6 +872,14 @@ paths:
     post:
       tags: ["Student"]
       summary: Apply to an internship offer (student only)
+      description: |
+        Submit an application to an open offer.
+
+        **Active placement rule:** If the student has a current placement (`selected` or `validated`) whose
+        internship has not ended, they may apply only when the offer's `internship_starts_at` is strictly
+        after their current `internship_ends_at`.
+
+        **Deadline:** Offers past their application deadline are rejected. Expired offers are auto-closed first.
       security:
         - bearerAuth: []
       parameters:
@@ -868,10 +911,30 @@ paths:
                     $ref: '#/components/schemas/Application'
         '404':
           description: Offer not found or not open
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageError'
         '409':
           description: Student has already applied to this offer
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageError'
+        '422':
+          description: Offer has no internship start date while student has an active placement
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageError'
         '403':
-          description: Student already selected an active internship
+          description: Offer closed, application deadline passed, or new internship overlaps current placement
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/MessageError'
+                  - $ref: '#/components/schemas/PlacementConflictError'
   /api/student/applications:
     get:
       tags: ["Student"]
@@ -923,6 +986,12 @@ paths:
     put:
       tags: ["Student"]
       summary: Finalize one accepted/validated internship choice (student only)
+      description: |
+        Confirm the student's final internship choice. Sets status to `selected`, stores
+        `internship_starts_at` / `internship_ends_at` from the offer, and refuses other pending/accepted applications.
+
+        If the student already has another active placement, the new offer's `internship_starts_at` must be
+        strictly after the current placement's `internship_ends_at`.
       security:
         - bearerAuth: []
       parameters:
@@ -943,11 +1012,23 @@ paths:
                   application:
                     $ref: '#/components/schemas/Application'
         '403':
-          description: Another internship is already selected and active
+          description: New internship overlaps an active placement (start date not after current end date)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlacementConflictError'
         '422':
           description: Company has not set internship start date on offer
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageError'
         '404':
           description: Application not found or not eligible
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageError'
   /api/company/offers/{id}/applications:
     get:
       tags: ["Company"]

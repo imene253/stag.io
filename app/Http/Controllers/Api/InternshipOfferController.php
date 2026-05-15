@@ -11,6 +11,8 @@ class InternshipOfferController extends Controller
    
     public function index(Request $request)
     {
+        InternshipOffer::closeExpired();
+
         $query = InternshipOffer::with('company')
             ->open(); 
 
@@ -42,6 +44,8 @@ class InternshipOfferController extends Controller
    
     public function show($id)
     {
+        InternshipOffer::closeExpired();
+
         $offer = InternshipOffer::with('company')->find($id);
 
         if (! $offer) {
