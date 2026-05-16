@@ -126,108 +126,123 @@ class ApplicationController extends Controller
     }
 
     public function finalizeChoice(Request $request, $id)
-    {
-        $application = Application::query()
-            ->where('id', $id)
-            ->where('student_id', $request->user()->id)
-            ->whereIn('status', ['accepted', 'validated'])
-            ->with('offer')
-            ->first();
+{
+    $application = Application::query()
+        ->where('id', $id)
+        ->where('student_id', $request->user()->id)
+        ->where('status', 'accepted')
+        ->with('offer')
+        ->first();
 
-        if (! $application) {
+    if (! $application) {
+        return response()->json([
+            'message' => 'Application not found or not eligible for final selection.',
+        ], 404);
+    }
+
+    $startDate = $application->offer->internship_starts_at
+        ? Carbon::parse((string) $application->offer->internship_starts_at)->startOfDay()
+        : null;
+
+    if (! $startDate) {
+        return response()->json([
+            'message' => 'Company must set internship start date on the offer before final selection.',
+        ], 422);
+    }
+
+    $endDate = $application->offer->duration_unit === 'weeks'
+        ? $startDate->copy()->addWeeks((int) $application->offer->duration_value)
+        : $startDate->copy()->addMonths((int) $application->offer->duration_value);
+
+    $activePlacement = Application::query()
+        ->where('student_id', $request->user()->id)
+        ->whereIn('status', ['selected', 'validated'])
+        ->whereDate('internship_ends_at', '>=', Carbon::today())
+        ->where('id', '!=', $application->id)
+        ->first();
+
+    if ($activePlacement) {
+        $activeStart = Carbon::parse($activePlacement->internship_starts_at)->startOfDay();
+        $activeEnd = Carbon::parse($activePlacement->internship_ends_at)->startOfDay();
+
+        $overlapsActivePlacement = $startDate->lte($activeEnd) && $endDate->gte($activeStart);
+
+        if ($overlapsActivePlacement) {
             return response()->json([
-                'message' => 'Application not found or not eligible for final selection.',
-            ], 404);
-        }
-
-        $activePlacement = Application::query()
-            ->where('student_id', $request->user()->id)
-            ->whereIn('status', ['selected', 'validated'])
-            ->whereDate('internship_ends_at', '>=', Carbon::today())
-            ->where('id', '!=', $application->id)
-            ->first();
-
-        if ($activePlacement && ! $activePlacement->allowsApplicationToOffer($application->offer)) {
-            return response()->json([
-                'message' => 'You can only select an internship that starts after your current one ends.',
+                'message' => 'You cannot select this internship because it overlaps with your current internship.',
                 'active_application_id' => $activePlacement->id,
-                'internship_ends_at' => $activePlacement->internship_ends_at->toDateString(),
-                'offer_starts_at' => optional($application->offer->internship_starts_at)
-                    ? Carbon::parse($application->offer->internship_starts_at)->toDateString()
-                    : null,
+                'current_internship_starts_at' => $activeStart->toDateString(),
+                'current_internship_ends_at' => $activeEnd->toDateString(),
+                'selected_offer_starts_at' => $startDate->toDateString(),
+                'selected_offer_ends_at' => $endDate->toDateString(),
             ], 403);
         }
-
-        $startDate = $application->offer->internship_starts_at
-            ? Carbon::parse((string) $application->offer->internship_starts_at)->startOfDay()
-            : null;
-
-        if (! $startDate) {
-            return response()->json([
-                'message' => 'Company must set internship start date on the offer before final selection.',
-            ], 422);
-        }
-
-        $endDate = $application->offer->duration_unit === 'weeks'
-            ? $startDate->copy()->addWeeks((int) $application->offer->duration_value)
-            : $startDate->copy()->addMonths((int) $application->offer->duration_value);
-
-        /*
-         * Only accepted applications are rejected here.
-         * Meaning:
-         * - refused  = company refused the student
-         * - rejected = student did not choose it after being accepted, or admin rejected it
-         */
-        $closedApplications = Application::query()
-            ->where('student_id', $application->student_id)
-            ->where('id', '!=', $application->id)
-            ->where('status', 'accepted')
-            ->with('offer.company')
-            ->get();
-
-        DB::transaction(function () use ($application, $startDate, $endDate, $closedApplications): void {
-            $application->update([
-                'status' => 'selected',
-                'selected_at' => now(),
-                'internship_starts_at' => $startDate->toDateString(),
-                'internship_ends_at' => $endDate->toDateString(),
-            ]);
-
-            if ($closedApplications->isNotEmpty()) {
-                Application::query()
-                    ->whereIn('id', $closedApplications->pluck('id')->all())
-                    ->update(['status' => 'rejected']);
-            }
-        });
-
-        $selectedApplication = $application->fresh()->load('offer.company', 'student.studentProfile');
-        $closedCount = $closedApplications->count();
-
-        $selectedApplication->student->notify(
-            new StudentFinalChoiceConfirmedNotification($selectedApplication, $closedCount)
-        );
-
-        User::where('role', 'admin')->get()->each(function (User $admin) use ($selectedApplication, $closedCount): void {
-            $admin->notify(
-                new StudentFinalChoiceNeedsAdminValidationNotification($selectedApplication, $closedCount)
-            );
-        });
-
-        foreach ($closedApplications as $closedApplication) {
-            $company = $closedApplication->offer?->company;
-
-            if ($company) {
-                $company->notify(
-                    new CompanyApplicationClosedByStudentChoiceNotification($closedApplication, $selectedApplication)
-                );
-            }
-        }
-
-        return response()->json([
-            'message' => 'Final choice saved. Other accepted applications were rejected.',
-            'application' => $selectedApplication,
-        ]);
     }
+
+    $acceptedApplications = Application::query()
+        ->where('student_id', $application->student_id)
+        ->where('id', '!=', $application->id)
+        ->where('status', 'accepted')
+        ->with('offer.company')
+        ->get();
+
+    $closedApplications = $acceptedApplications->filter(function ($otherApplication) use ($startDate, $endDate) {
+        if (! $otherApplication->offer || ! $otherApplication->offer->internship_starts_at) {
+            return false;
+        }
+
+        $otherStart = Carbon::parse($otherApplication->offer->internship_starts_at)->startOfDay();
+
+        $otherEnd = $otherApplication->offer->duration_unit === 'weeks'
+            ? $otherStart->copy()->addWeeks((int) $otherApplication->offer->duration_value)
+            : $otherStart->copy()->addMonths((int) $otherApplication->offer->duration_value);
+
+        return $otherStart->lte($endDate) && $otherEnd->gte($startDate);
+    });
+
+    DB::transaction(function () use ($application, $startDate, $endDate, $closedApplications): void {
+        $application->update([
+            'status' => 'selected',
+            'selected_at' => now(),
+            'internship_starts_at' => $startDate->toDateString(),
+            'internship_ends_at' => $endDate->toDateString(),
+        ]);
+
+        if ($closedApplications->isNotEmpty()) {
+            Application::query()
+                ->whereIn('id', $closedApplications->pluck('id')->all())
+                ->update(['status' => 'rejected']);
+        }
+    });
+
+    $selectedApplication = $application->fresh()->load('offer.company', 'student.studentProfile');
+    $closedCount = $closedApplications->count();
+
+    $selectedApplication->student->notify(
+        new StudentFinalChoiceConfirmedNotification($selectedApplication, $closedCount)
+    );
+
+    User::where('role', 'admin')->get()->each(function (User $admin) use ($selectedApplication, $closedCount): void {
+        $admin->notify(
+            new StudentFinalChoiceNeedsAdminValidationNotification($selectedApplication, $closedCount)
+        );
+    });
+
+    foreach ($closedApplications as $closedApplication) {
+        $company = $closedApplication->offer?->company;
+
+        if ($company) {
+            $company->notify(
+                new CompanyApplicationClosedByStudentChoiceNotification($closedApplication, $selectedApplication)
+            );
+        }
+    }
+
+    return response()->json([
+        'message' => 'Final choice saved. Only overlapping accepted applications were rejected.',
+        'application' => $selectedApplication,
+    ]);
+}
 
     public function offerApplicants(Request $request, $offerId)
     {

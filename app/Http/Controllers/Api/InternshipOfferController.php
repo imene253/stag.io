@@ -97,51 +97,68 @@ class InternshipOfferController extends Controller
 
    
     public function update(Request $request, $id)
-    {
-        $offer = InternshipOffer::where('id', $id)
-            ->where('user_id', $request->user()->id)
-            ->first();
+{
+    $offer = InternshipOffer::where('id', $id)
+        ->where('user_id', $request->user()->id)
+        ->first();
 
-        if (! $offer) {
-            return response()->json([
-                'message' => 'Offer not found or you do not own it.'
-            ], 404);
-        }
-
-        $request->validate([
-            'title'           => ['sometimes', 'string', 'max:255'],
-            'description'     => ['sometimes', 'string'],
-            'domain'          => ['sometimes', 'string', 'max:255'],
-            'location'        => ['sometimes', 'string', 'max:255'],
-            'type'            => ['sometimes', 'in:présentiel,télétravail,hybride'],
-            'duration_unit'   => ['sometimes', 'in:weeks,months'],
-            'duration_value'  => ['sometimes', 'integer', 'min:1'],
-            'required_skills' => ['nullable', 'array'],
-            'required_skills.*'=> ['string', 'max:50'],
-            'status'          => ['sometimes', 'in:open,closed'],
-            'deadline'        => ['nullable', 'date'],
-            'internship_starts_at' => ['sometimes', 'date'],
-        ]);
-
-        $offer->update($request->only([
-            'title',
-            'description',
-            'domain',
-            'location',
-            'type',
-            'duration_unit',
-            'duration_value',
-            'required_skills',
-            'status',
-            'deadline',
-            'internship_starts_at',
-        ]));
-
+    if (! $offer) {
         return response()->json([
-            'message' => 'Offer updated successfully.',
-            'offer'   => $offer->fresh(),
-        ]);
+            'message' => 'Offer not found or you do not own it.'
+        ], 404);
     }
+
+    $request->validate([
+        'title'           => ['sometimes', 'string', 'max:255'],
+        'description'     => ['sometimes', 'string'],
+        'domain'          => ['sometimes', 'string', 'max:255'],
+        'location'        => ['sometimes', 'string', 'max:255'],
+        'type'            => ['sometimes', 'in:présentiel,télétravail,hybride'],
+        'duration_unit'   => ['sometimes', 'in:weeks,months'],
+        'duration_value'  => ['sometimes', 'integer', 'min:1'],
+        'required_skills' => ['nullable', 'array'],
+        'required_skills.*'=> ['string', 'max:50'],
+        'status'          => ['sometimes', 'in:open,closed'],
+        'deadline'        => ['nullable', 'date'],
+        'internship_starts_at' => ['sometimes', 'date'],
+    ]);
+
+    $hasImportantApplications = $offer->applications()
+        ->whereIn('status', ['accepted', 'selected', 'validated'])
+        ->exists();
+
+    $periodFields = [
+        'internship_starts_at',
+        'duration_unit',
+        'duration_value',
+    ];
+
+    if ($hasImportantApplications && $request->only($periodFields)) {
+        return response()->json([
+            'message' => 'You cannot modify the internship period after a candidate has been accepted, selected, or validated.',
+            'locked_fields' => $periodFields,
+        ], 403);
+    }
+
+    $offer->update($request->only([
+        'title',
+        'description',
+        'domain',
+        'location',
+        'type',
+        'duration_unit',
+        'duration_value',
+        'required_skills',
+        'status',
+        'deadline',
+        'internship_starts_at',
+    ]));
+
+    return response()->json([
+        'message' => 'Offer updated successfully.',
+        'offer'   => $offer->fresh(),
+    ]);
+}
 
        public function destroy(Request $request, $id)
     {
