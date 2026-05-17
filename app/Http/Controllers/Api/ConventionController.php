@@ -115,27 +115,27 @@ class ConventionController extends Controller
         );
     }
 
-    // STUDENT — VIEW MY CONVENTION
-    public function myConvention(Request $request)
+    // STUDENT — LIST ALL MY CONVENTIONS (one per validated internship)
+    public function myConventions(Request $request)
     {
-        $convention = Convention::whereHas('application', function ($q) use ($request) {
+        $conventions = Convention::whereHas('application', function ($q) use ($request) {
                 $q->where('student_id', $request->user()->id)
                   ->where('status', 'validated');
             })
-            ->with('application.offer.company.companyProfile')
+            ->with([
+                'application.offer.company.companyProfile',
+                'application.student.studentProfile',
+            ])
             ->latest()
-            ->first();
+            ->paginate(15);
 
-        if (! $convention) {
-            return response()->json([
-                'message' => 'No convention found yet.'
-            ], 404);
-        }
+        $conventions->getCollection()->transform(function (Convention $convention) {
+            $convention->download_url = url('api/conventions/' . $convention->id . '/download');
 
-        return response()->json([
-            'convention'   => $convention,
-            'download_url' => url('api/conventions/' . $convention->id . '/download'),
-        ]);
+            return $convention;
+        });
+
+        return response()->json($conventions);
     }
 
     // COMPANY — LIST THEIR CONVENTIONS WITH DOWNLOAD URL

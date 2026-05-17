@@ -41,7 +41,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/applications',         [ApplicationController::class, 'myApplications']);
         Route::delete('/applications/{id}', [ApplicationController::class, 'cancel']);
         Route::put('/applications/{id}/finalize-choice', [ApplicationController::class, 'finalizeChoice']);
-        Route::get('/convention',           [ConventionController::class,  'myConvention']);
+        Route::get('/conventions',          [ConventionController::class, 'myConventions']);
+        Route::get('/convention',           [ConventionController::class, 'myConventions']); // legacy alias
 
         // Gemini matching endpoint
         Route::post('/offers/{offerId}/ai-match', [MatchingController::class, 'matchReal']);

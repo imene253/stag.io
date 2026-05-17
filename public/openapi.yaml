@@ -1255,17 +1255,62 @@ paths:
           description: Forbidden
         '404':
           description: Convention not found
-  /api/student/convention:
+  /api/student/conventions:
     get:
       tags: ["Student", "Conventions"]
-      summary: Get current student's convention metadata
+      summary: List all conventions for the student's validated internships
+      description: >
+        Returns one convention per validated application. Students with multiple validated
+        internships (e.g. current and future placements) receive all matching conventions.
       security:
         - bearerAuth: []
       responses:
         '200':
-          description: Convention found
+          description: Paginated list of conventions with download URLs
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: integer }
+                        application_id: { type: integer }
+                        convention_number: { type: string }
+                        generated_at: { type: string, format: date }
+                        download_url: { type: string, format: uri }
+                        application:
+                          $ref: '#/components/schemas/Application'
+                  current_page: { type: integer }
+                  last_page: { type: integer }
+                  per_page: { type: integer }
+                  total: { type: integer }
         '404':
-          description: No convention found yet
+          description: No conventions found yet
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+                  data:
+                    type: array
+                    items: {}
+  /api/student/convention:
+    get:
+      tags: ["Student", "Conventions"]
+      summary: List student conventions (legacy alias of /student/conventions)
+      description: Same response as GET /api/student/conventions.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Paginated list of conventions
+        '404':
+          description: No conventions found yet
   /api/admin/conventions:
     get:
       tags: ["Admin", "Conventions"]
